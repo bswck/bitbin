@@ -18,7 +18,7 @@ from constance import *
 # Create a Struct dataclass that 
 # is equivalent to construct.Struct
 class Point2D(Struct):
-    """Two-dimensional on a plane."""
+    """Two-dimensional point in the plane."""
 
     # Declare 2 struct members of type int 
     # (which are by default understood similarly
@@ -47,7 +47,6 @@ loaded_vector = Vector2D.load(stash)
 # Check if both are equal
 # Equality operator is available thanks to dataclasses
 assert my_vector == loaded_vector
-
 
 # Create a Circle dataclass
 # that uses previously created
