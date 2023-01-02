@@ -1,3 +1,4 @@
+import collections.abc
 import copy
 
 import construct as _lib
@@ -25,19 +26,16 @@ __all__ = (
 class ArrayLike(composite.Modifier):
     @staticmethod
     def init(inner_cls, instance, *inits):
-        instance.__inner_payload__ = [
+        instance.__modified__ = [
             (
                 init if (isinstance(inner_cls, type) and isinstance(init, inner_cls))
-                else (
-                    inner_cls(init) if isinstance(inner_cls, api.Atomic)
-                    else (inner_cls(**init) if isinstance(init, dict) else inner_cls(*init))
-                )
+                else util.initialize_constance(inner_cls, init)
             )
             for init in inits
         ]
         if isinstance(inner_cls, api.Atomic):
-            return copy.deepcopy(instance.__inner_payload__)
-        return [member._get_data_for_building() for member in instance.__inner_payload__]
+            return copy.deepcopy(instance.__modified__)
+        return [member._get_data_for_building() for member in instance.__modified__]
 
     @staticmethod
     def load(outer_cls, inner_cls, args, **kwargs):
@@ -49,15 +47,15 @@ class ArrayLike(composite.Modifier):
         ))
 
     @classmethod
-    def repr(cls, inner_cls, instance=None, **kwds):
-        return super().repr(inner_cls, **kwds) + (
-            ', '.join(map(repr, instance.__inner_payload__)).join('()')
+    def repr(cls, inner_cls, modified_type, instance=None, **kwds):
+        return super().repr(inner_cls, modified_type, **kwds) + (
+            ', '.join(map(repr, instance.__modified__)).join('()')
             if instance is not None else ''
         )
 
     @staticmethod
     def iter(instance):
-        yield from instance.__inner_payload__
+        yield from instance.__modified__
 
 
 class Array(ArrayLike):
@@ -94,7 +92,7 @@ class Default(composite.Modifier):
 
     @classmethod
     def init(cls, inner_cls, instance, *args, **kwargs):
-        instance.__inner_payload__ = wrapped = None
+        instance.__modified__ = wrapped = None
         if args or kwargs:
             wrapped = super().init(inner_cls, instance, *args, **kwargs)
         return wrapped

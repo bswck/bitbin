@@ -1,3 +1,4 @@
+import collections
 import contextlib
 import dataclasses
 import functools
@@ -17,6 +18,8 @@ __all__ = (
     'modify',
 )
 
+MISSING_EXTENDS = object()
+
 
 class Data(api.Composite):
     """
@@ -26,25 +29,68 @@ class Data(api.Composite):
 
     _impl = None  # type: typing.ClassVar[type[api.Constance] | None]
     _field_environment = None  # type: typing.ClassVar[dict[str, typing.Any] | None]
-    _skip_fields = []  # type: typing.ClassVar[list[str]]
+    _skip_fields = None  # type: typing.ClassVar[list[str]]
+    _field_names = []  # type: typing.ClassVar[list[str]]
+    _dataclass_params = None
 
-    def __init_subclass__(cls, **declaration_env):
-        dataclasses.dataclass(cls)
-        payload_fields = []
+    def __init_subclass__(cls, extends=MISSING_EXTENDS, **declaration_env):
+        data_fields = []
+        setattr(cls, _constants.DATA_FIELDS_ATTR, data_fields)
+
+        if extends is MISSING_EXTENDS:
+            extends = cls.__base__
+
+        dataclass_fields = []
+
+        if cls._field_names is not None:
+
+            cls._field_names = [
+                *(getattr(extends, '_field_names', None) or [] if extends else []),
+                *cls._field_names
+            ]
+            cls._skip_fields = [
+                *(getattr(extends, '_skip_fields', None) or [] if extends else []),
+                *(cls._skip_fields or [])
+            ]
+
+            for field_name in set(cls._field_names).difference(cls._skip_fields):
+                if field_name not in cls.__annotations__:
+                    _find_annotation = util.find_type_annotation
+                    try:
+                        obj = getattr(cls, field_name)
+                        annotation = _find_annotation(obj)
+                        if annotation is None:
+                            raise AttributeError
+                    except AttributeError:
+                        raise AttributeError(
+                            f'{cls.__name__}.{field_name} is missing a type annotation'
+                        ) from None
+                    cls.__annotations__[field_name] = annotation
+
+        dataclasses.dataclass(cls, **(cls._dataclass_params or {}))
 
         cls._setup_field_environment(declaration_env)
         type_hints = typing.get_type_hints(cls, cls._field_environment)
 
-        for field in dataclasses.fields(cls):  # noqa
+        dataclass_fields.extend(dataclasses.fields(cls))  # noqa
+        for field in dataclass_fields:
             if field.name in cls._skip_fields:
                 continue
-            field.metadata = dict(field.metadata)
-            field.metadata['construct'] = functools.partial(
-                util.get_construct_method, field, type_hints.get(field.name)
+            constance = util.make_constance(type_hints.get(field.name))
+            field.metadata = dict(
+                **field.metadata,
+                constance=constance,
+                construct=util.get_field_construct(
+                    constance, field.name
+                )
             )
-            payload_fields.append(field)
+            data_fields.append(field)
 
-        setattr(cls, _constants.PAYLOAD_FIELDS_ATTR, payload_fields)
+    def __post_init__(self):
+        for field in getattr(self, _constants.DATA_FIELDS_ATTR):
+            constance = field.metadata['constance']
+            value = util.initialize_constance(constance, getattr(self, field.name))
+            object.__setattr__(self, field.name, value)
 
     @classmethod
     def _setup_field_environment(cls, declaration_env):
@@ -83,7 +129,7 @@ class Data(api.Composite):
 
     @classmethod
     def construct(cls):
-        fields = map(util.call_construct_method, getattr(cls, _constants.PAYLOAD_FIELDS_ATTR))
+        fields = map(util.call_construct_method, getattr(cls, _constants.DATA_FIELDS_ATTR))
         return cls._impl(*fields)
 
     @classmethod
@@ -117,7 +163,6 @@ class _DataPrivateEntries:
         self.set_payload(payload)
 
     def set_payload(self, payload: Data):
-        self.entries.clear()
         self._payload = weakref.ref(payload)
 
     def update(self, container: _lib.Container):
@@ -144,7 +189,7 @@ class Modifier(api.Composite):
     @classmethod
     def subconstruct(cls, *args, **kwargs):
         return api.SubconstructAlias(
-            name=cls.__name__, 
+            cls.__name__,
             factory=cls._impl, 
             args=args, 
             kwargs=kwargs
@@ -154,30 +199,20 @@ class Modifier(api.Composite):
     def map_kwargs(kwargs):
         return kwargs
 
-    @staticmethod
-    def init(inner_cls, instance, *args, **kwargs):
-        instance.__modified__ = wrapped = inner_cls(*args, **kwargs)
-        return wrapped if isinstance(inner_cls, api.Atomic) else wrapped._get_data_for_building()
+    @classmethod
+    def init(cls, inner_cls, instance, *args, **kwargs):
+        instance.__modified__ = modified = inner_cls(*args, **kwargs)
+        return modified if isinstance(inner_cls, api.Atomic) else modified._get_data_for_building()
 
-    @staticmethod
-    def load(outer_cls, inner_cls, args, **kwargs):
+    @classmethod
+    def load(cls, outer_cls, inner_cls, args, **kwargs):
         return outer_cls(*args, **kwargs)
 
     @classmethod
-    def repr(cls, inner_cls, instance=None, **kwds):
+    def repr(cls, inner_cls, modified_type, instance=None, **kwds):
         return (
-            cls.__name__
-            + (', '.join(
-                filter(None, (
-                    inner_cls.type_name
-                    if isinstance(inner_cls, api.Atomic)
-                    else inner_cls.__name__,
-                    ', '.join(
-                        f'{key!s}={value!r}'
-                        for key, value in kwds.items())
-                ))
-            )).join('<>')
-            + (f'({instance.__inner_payload__})' if instance is not None else '')
+            modified_type.type_name
+            + (f'({instance.__modified__})' if instance is not None else '')
         )
 
     @staticmethod
@@ -188,25 +223,49 @@ class Modifier(api.Composite):
     def of(cls, payload=None, **kwargs):
         if payload is None:
             return functools.partial(cls.of, **kwargs)
-        return util.make_constance(payload).modify(cls, **kwargs)
+        return util.make_constance(payload).modify(cls, **cls.map_kwargs(kwargs))
 
 
 def modify(inner_cls, outer_cls: type[Modifier], /, **kwds):
 
     class ModifiedDataType(type):
+        _type_name = None
+
+        @property
+        def type_name(self):
+            if not self._type_name:
+                self._type_name = (
+                    outer_cls.__name__
+                    + (
+                        ', '.join(
+                            filter(None, (
+                                getattr(inner_cls, 'type_name', inner_cls.__name__),
+                                ', '.join(
+                                    f'{key!s}={value!r}'
+                                    for key, value in kwds.items())
+                            ))
+                        )
+                    ).join('<>')
+                )
+            return self._type_name if self == ModifiedData else self.__name__
+
         def __repr__(self):
-            return cls_name
+            return self.type_name
 
     class ModifiedData(Data, metaclass=ModifiedDataType):
+        _skip_fields = ['__modified_for_building__']
+        _dataclass_params = {'init': False, 'repr': False}
+        __modified_for_building__: typing.Any
+
         def __init__(self, *args, **kwargs):
-            self.__modified__ = outer_cls.init(inner_cls, self, *args, **kwargs)
+            self.__modified_for_building__ = outer_cls.init(inner_cls, self, *args, **kwargs)
 
         def _get_data_for_building(self):
-            return self.__modified__
+            return self.__modified_for_building__
 
         @classmethod
         def construct(cls):
-            return outer_cls.subconstruct(subcon=util.ensure_construct(inner_cls), **kwds)
+            return outer_cls.subconstruct(subcon=util.call_construct_method(inner_cls), **kwds)
 
         @classmethod
         def _load_from_args(cls, args, **kwargs):
@@ -220,7 +279,6 @@ def modify(inner_cls, outer_cls: type[Modifier], /, **kwds):
             yield from outer_cls.iter(self)
 
         def __repr__(self):
-            return outer_cls.repr(inner_cls, instance=self, **kwds)
+            return outer_cls.repr(inner_cls, modified_type=type(self), instance=self, **kwds)
 
-    cls_name = outer_cls.repr(inner_cls, **kwds)
     return ModifiedData

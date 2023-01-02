@@ -5,6 +5,9 @@ Informal playground while developing.
 from constance import *
 
 
+#
+# # Example 1
+#
 class Point2D(Struct):
     x: int
     y: int
@@ -12,10 +15,26 @@ class Point2D(Struct):
 
 Vector2D = Point2D[2]
 
-vector_sent = Vector2D((-20, 8), (10, 15))
+my_vector = Vector2D((-20, 8), (10, 15))
 
-packet = bytes(vector_sent)
+stash = bytes(my_vector)
 
-vector_received = Vector2D.load(packet)
+loaded_vector = Vector2D.load(stash)
 
-assert vector_sent == vector_received
+assert my_vector == loaded_vector
+
+
+# Example 2
+
+class Circle(Struct):
+    center: Point2D
+    radius: double
+
+
+my_circle = Circle((5, 5), 20)
+
+stash = bytes(my_circle)
+
+loaded_circle = Circle.load(stash)
+
+assert my_circle == loaded_circle

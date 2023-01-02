@@ -21,9 +21,6 @@ class BitStruct(composite.Data):
     _impl = _lib.BitStruct
 
 
-MISSING_EXTENDS = object()
-
-
 class Sequence(composite.Data):
     _impl = _lib.Sequence
 
@@ -47,8 +44,8 @@ class Sequence(composite.Data):
     def __iter__(self):
         yield from self._get_data_for_building()
 
-    def __init_subclass__(cls, extends=MISSING_EXTENDS, **env):
-        if extends is MISSING_EXTENDS:
+    def __init_subclass__(cls, extends=composite.MISSING_EXTENDS, **env):
+        if extends is composite.MISSING_EXTENDS:
             extends = cls.__base__
         super_fields = (
             (getattr(extends, 'fields', None) or ())

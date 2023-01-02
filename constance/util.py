@@ -1,3 +1,4 @@
+import collections.abc
 import types
 import typing
 
@@ -10,7 +11,7 @@ __all__ = (
     'call_construct_method',
     'construct_coerce_type',
     'ensure_construct',
-    'get_construct_method',
+    'get_field_construct',
     'make_constance',
 )
 
@@ -30,7 +31,7 @@ def make_constance(python_type, qualname=None):
         isinstance(python_type, (api.Atomic, api.SubconstructAlias))
         or (
             isinstance(python_type, type)
-            and not args
+            # and not args
             and issubclass(python_type, api.Constance)
         )
     ):
@@ -54,13 +55,13 @@ def make_constance(python_type, qualname=None):
             return tp
         if not isinstance(tp, type):
             return tp(factories, count=count)
-        raise TypeError(f'{tp.__name__} type as a payload field type is not supported')
+        raise TypeError(f'{tp.__name__} type as a data field type is not supported')
 
     atomic = make_constance.atomic.get(python_type)
     if atomic:
         return atomic
 
-    raise TypeError(f'cannot use ambiguous non-factory type {python_type} as a payload field')
+    raise TypeError(f'cannot use ambiguous non-factory type {python_type} as a data field')
 
 
 make_constance.generic = {}
@@ -92,17 +93,7 @@ class _TypingLib:
         return getattr(tp, '_nparams', None)
 
 
-def get_construct_method(payload_field, fallback_type_hint, cls_name=None):
-    name = payload_field.name
-    qualname = (cls_name + '.' if cls_name else '') + (name or '')
-    payload_field.metadata = dict(payload_field.metadata)
-    constance = (
-        payload_field.metadata.get('constance')
-        or payload_field.metadata.setdefault(
-            'constance',
-            make_constance(fallback_type_hint, qualname)
-        )
-    )
+def get_field_construct(constance, name):
     construct = _lib.extractfield(call_construct_method(constance))
     if not construct:
         raise ValueError
@@ -130,11 +121,31 @@ def call_construct_method(f):
         construct = f.metadata.get('construct')
     ret = None
     if construct:
-        ret = construct()
+        ret = construct if isinstance(construct, _lib.Construct) else construct()
     if ret is None:
         raise ValueError(f'{f}.construct() is unknown or returned None')
     return ret
 
 
 def ensure_construct(obj):
+    if isinstance(obj, _lib.Construct):
+        return obj
     return call_construct_method(make_constance(obj))
+
+
+def find_type_annotation(obj):
+    annotation = None
+    if isinstance(obj, property):
+        annotation = getattr(obj.fget, '__annotations__', {}).get('return')
+    if callable(obj) or isinstance(obj, (classmethod, staticmethod)):
+        annotation = obj.__annotations__.get('return')
+    return annotation
+
+
+def initialize_constance(constance, init):
+    from constance.api import Atomic
+    if isinstance(constance, Atomic):
+        return constance(init)
+    if isinstance(init, collections.abc.Mapping):
+        return constance._load_from_args(init)
+    return constance(*init)

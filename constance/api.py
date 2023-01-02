@@ -31,9 +31,14 @@ class Constance:
         return construct.sizeof(**context)
 
 
+CAST_MISSING = object()
+
+
 class Atomic(Constance):
-    def __init__(self, construct, cast=None, python_type=None):
+    def __init__(self, construct, cast=CAST_MISSING, python_type=None):
         self._construct = construct
+        if cast is CAST_MISSING:
+            cast = python_type
         self._cast = cast
         self._python_type = python_type
 
@@ -74,13 +79,16 @@ class Atomic(Constance):
 class SubconstructAlias(Constance):
     def __init__(
             self,
-            name,
+            name=None, /, *,
             factory,
             args=(),
             kwargs=None,
             python_type=None
     ):
-        self._name = name
+        self._name = name or (
+            factory.__name__
+            if isinstance(factory, type) else type(factory).__name__
+        )
         self._factory = factory
 
         self._args = args
