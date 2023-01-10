@@ -41,4 +41,7 @@ assert my_circle == loaded_circle
 LazyCircles = LazyArray.of(Circle)
 print(LazyCircles)
 
-print(LazyCircles(1))
+lazy_circles = LazyCircles([(1, 2), 2])
+print(lazy_circles.build())
+
+

@@ -475,7 +475,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
         @classmethod
         def construct(cls):
             s_kwargs.update(subcon=util.call_construct_method(constance_cls))
-            return subconstance_cls.subconstruct(None, *s_args, **s_kwargs)
+            return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
         def _load_from_container(cls, container, **kwargs):
