@@ -113,7 +113,7 @@ class SubconstructArgumentManager:
             bound_args = signature.bind(*args, **kwargs)
         except TypeError as exc:
             raise TypeError(
-                f'error during validating arguments passed to {self.name}[]\n'
+                f'error during validating arguments passed to {self.name}.of() or {self.name}[]\n'
                 f'Signature: {signature}\n'
                 f'Check help({self.factory.__module__}.{self.factory.__qualname__}) '
                 'for details on proper use.'
