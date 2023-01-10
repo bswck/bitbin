@@ -109,7 +109,6 @@ __all__ = (
     'StopIf',
     'StringEncoded',
     'Struct',
-    'Subconstruct',
     'Switch',
     'SymmetricAdapter',
     'TimestampAdapter',
