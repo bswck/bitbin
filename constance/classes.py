@@ -340,7 +340,6 @@ class MaybeConstructLambda:
 
 class Subconstance(Composite):
     _impl = None
-    _argument_manager_cls = SubconstructArgumentManager
     _subconstruct_cls = Subconstruct
 
     @classmethod
