@@ -453,8 +453,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
                         f'{key!s}={value!r}'
                         for key, value in s_kwargs.items())
                 ))
-                self._type_name += ', '.join(fmt)
-                self._type_name = self._type_name.join('<>')
+                self._type_name += ', '.join(fmt).join('<>')
             return self._type_name if self == BoundSubconstance else self.__name__
 
         def __repr__(self):

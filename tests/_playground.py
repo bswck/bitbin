@@ -12,7 +12,6 @@ class Point2D(Struct):
 
 
 Vector2D = Point2D[2]
-
 my_vector = Vector2D((-20, 8), (10, 15))
 
 stash = bytes(my_vector)
@@ -39,3 +38,4 @@ print(loaded_circle)
 assert my_circle == loaded_circle
 
 LazyCircle = LazyArray[1, Circle]
+print(LazyCircle)
