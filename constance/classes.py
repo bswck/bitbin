@@ -68,7 +68,7 @@ class Atomic(Constance):
     def construct(self):
         return self._construct
 
-    def subconstance(self, subconstance_cls, /, *args, **kwargs):
+    def subconstance(self, subconstance_cls, *args, **kwargs):
         return subconstance(self, subconstance_cls, *args, **kwargs)
 
     def __call__(self, obj):
@@ -97,7 +97,14 @@ class SubconstructArgumentManager:
     args = None
     kwargs = None
 
-    def __init__(self, factory, name, args, kwargs, mapper=None):
+    def __init__(
+            self,
+            factory,
+            name,
+            args,
+            kwargs,
+            mapper=None,
+    ):
         self.name = name
         self.factory = factory
         self.mapper = mapper
@@ -118,7 +125,8 @@ class SubconstructArgumentManager:
                 f'Check help({self.factory.__module__}.{self.factory.__qualname__}) '
                 'for details on proper use.'
             ) from exc
-        bound_args.arguments = self.mapper(bound_args.arguments)
+        arguments = bound_args.arguments
+        bound_args.arguments = self.mapper(arguments)
         self.args = bound_args.args
         self.kwargs = bound_args.kwargs
 
@@ -167,6 +175,31 @@ class Composite(Constance):
         raise ValueError(f'{cls.__name__}[{", ".join(map(str, args)) or ()}] is undefined')
 
 
+class LazyDataProxy:
+    def __init__(self, data_cls, container, kwargs):
+        self.__cls = data_cls
+        self.__container = container
+        self.__kwargs = kwargs
+        self.__obj = None
+
+    def _wake_up(self):
+        if self.__obj is None:
+            self.__obj = self.__cls._load_from_container(self.__container, **self.__kwargs)
+
+    def __getattr__(self, item):
+        self._wake_up()
+        return getattr(self.__obj, item)
+
+    def __call__(self):
+        self._wake_up()
+        return self.__obj
+
+    def __repr__(self):
+        if self.__obj is None:
+            return f'LazyUnloaded<{self.__cls}>'
+        return repr(self.__obj)
+
+
 class Data(Composite):
     """
     A composite Constance that represents data.
@@ -178,6 +211,7 @@ class Data(Composite):
     _skip_fields = None  # type: typing.ClassVar[list[str]]
     _field_names = []  # type: typing.ClassVar[list[str]]
     _dataclass_params = None
+    _lazy_proxy_cls = LazyDataProxy
 
     def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
         data_fields = []
@@ -273,8 +307,8 @@ class Data(Composite):
         yield from self._get_data_for_building()
 
     @classmethod
-    def subconstance(cls, subconstance_cls, /, **kwds):
-        return subconstance(cls, subconstance_cls, **kwds)
+    def subconstance(cls, subconstance_cls, *args, **kwargs):
+        return subconstance(cls, subconstance_cls, *args, **kwargs)
 
     @classmethod
     def construct(cls):
@@ -289,6 +323,8 @@ class Data(Composite):
 
     @classmethod
     def _load_from_container(cls, container, **kwargs):
+        if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
+            return cls._lazy_proxy_cls(cls, container, kwargs)
         private_entries = _DataPrivateEntries()
         init = private_entries.update(container)
         instance = cls(**init, **kwargs)
@@ -363,8 +399,7 @@ class Subconstance(Composite):
 
     @staticmethod
     def map_arguments(arguments):
-        if 'subcon' in arguments:
-            arguments.update(subcon=util.ensure_construct(arguments['subcon']))
+        arguments.update(subcon=util.ensure_construct_or_none(arguments['subcon']))
         return arguments
 
     @classmethod
@@ -377,7 +412,7 @@ class Subconstance(Composite):
         return subconstance_cls(*args, **kwargs)
 
     @classmethod
-    def repr(cls, constance_cls, bound_subconstance, instance=None, *s_args, **s_kwargs):
+    def repr(cls, constance_cls, bound_subconstance, s_args, s_kwargs, instance=None):
         return (
             bound_subconstance.type_name
             + (f'({instance.__bound__})' if instance is not None else '')
@@ -392,8 +427,11 @@ class Subconstance(Composite):
         if constance is None:
             return functools.partial(cls.of, *args, **kwargs)
         constance = util.make_constance(constance)
-        mgr = cls._argument_manager_cls(cls._impl, cls.__name__, args, kwargs, cls.map_arguments)
-        return constance.subconstance(cls, *mgr.args, **mgr.kwargs)
+        # mgr = cls._argument_manager_cls(
+        #     cls._impl, cls.__name__, args, kwargs, cls.map_arguments,
+        #     examine_subcon=False,
+        # )
+        return constance.subconstance(cls, *args, **kwargs)
 
 
 class ArrayLike(Subconstance):
@@ -420,8 +458,8 @@ class ArrayLike(Subconstance):
         ))
 
     @classmethod
-    def repr(cls, constance_cls, bound_subconstance, instance=None, *s_args, **s_kwargs):
-        return super().repr(constance_cls, bound_subconstance, *s_args, **s_kwargs) + (
+    def repr(cls, constance_cls, bound_subconstance, s_args, s_kwargs, instance=None):
+        return super().repr(constance_cls, bound_subconstance, s_args, s_kwargs) + (
             ', '.join(map(repr, instance.__bound__)).join('()')
             if instance is not None else ''
         )
@@ -439,7 +477,7 @@ class Array(ArrayLike):
         return cls.subconstruct(MISSING_MAPPER, *args)
 
 
-def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args, **s_kwargs):
+def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, **s_kwargs):
     class SubconstanceMeta(type):
         _type_name = None
 
@@ -477,10 +515,12 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
         @classmethod
         def construct(cls):
             s_kwargs.update(subcon=util.call_construct_method(constance_cls))
-            return subconstance_cls.subconstruct(None, *s_args, **s_kwargs)
+            return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
         def _load_from_container(cls, container, **kwargs):
+            if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
+                return cls._lazy_proxy_cls(cls, container, kwargs)
             return subconstance_cls.load(cls, constance_cls, container, **kwargs)
 
         @classmethod
@@ -495,8 +535,8 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
                 constance_cls,
                 bound_subconstance=type(self),
                 instance=self,
-                *s_args,
-                **s_kwargs
+                s_args=s_args,
+                s_kwargs=s_kwargs
             )
 
     return BoundSubconstance

@@ -38,10 +38,12 @@ loaded_circle = Circle.load(stash)
 print(loaded_circle)
 assert my_circle == loaded_circle
 
-LazyCircles = LazyArray.of(Circle, 5)
+LazyCircles = LazyArray.of(Circle, 1)
 print(LazyCircles)
 
 lazy_circles = LazyCircles([(1, 2), 2])
-print(lazy_circles.build())
+print(pkt := lazy_circles.build())
+
+print(LazyCircles.load(pkt))
 
 

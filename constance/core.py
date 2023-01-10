@@ -501,8 +501,9 @@ class Sequence(classes.Data):
 
     @classmethod
     def _load_from_container(cls, container, **kwargs):
-        instance = cls(*container, **kwargs)
-        return instance
+        if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
+            return cls._lazy_proxy_cls(cls, container, kwargs)
+        return cls(*container, **kwargs)
 
     @classmethod
     def _autocreate_field_name(cls, _f, i):

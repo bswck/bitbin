@@ -9,6 +9,7 @@ import construct as _lib
 __all__ = (
     'call_construct_method',
     'ensure_construct',
+    'ensure_construct_or_none',
     'get_field_construct',
     'make_constance',
 )
@@ -117,6 +118,12 @@ def ensure_construct(obj):
     if isinstance(obj, _lib.Construct):
         return obj
     return call_construct_method(make_constance(obj))
+
+
+def ensure_construct_or_none(obj):
+    if obj is None:
+        return obj
+    return ensure_construct(obj)
 
 
 def find_type_annotation(obj):
