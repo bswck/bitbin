@@ -5,12 +5,9 @@ import typing
 
 import construct as _lib
 
-from constance import _constants
-
 
 __all__ = (
     'call_construct_method',
-    'construct_coerce_type',
     'ensure_construct',
     'get_field_construct',
     'make_constance',
@@ -100,18 +97,6 @@ def get_field_construct(constance, name):
         raise ValueError
     if name:
         return _lib.Renamed(construct, name)
-    return construct
-
-
-def construct_coerce_type(python_type, construct):
-    if python_type and not getattr(construct, _constants.CONSTRUCT_TYPE_COERCION_ATTR, False):
-        parsereport = construct._parsereport
-        setattr(construct, _constants.CONSTRUCT_TYPE_COERCION_ATTR, True)
-        construct._parsereport = lambda stream, context, path: (
-            python_type(result) if not isinstance(
-                result := parsereport(stream, context, path), python_type
-            ) else result
-        )
     return construct
 
 

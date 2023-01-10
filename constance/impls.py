@@ -1,8 +1,17 @@
+from __future__ import annotations
+
+import sys
+import typing
+
 import construct as _lib
 
 from constance import _constants
 from constance import classes
 from constance import util
+
+if typing.TYPE_CHECKING:
+    from typing import Callable
+    from typing import Literal
 
 
 __all__ = (
@@ -120,3 +129,24 @@ generic_types.register(list, classes.Generic(list))
 generic_types.register(set, classes.Generic(set))
 generic_types.register(frozenset, classes.Generic(frozenset))
 generic_types.register(tuple, classes.Generic(tuple))
+
+
+VALID_ENDIANNESSES = {
+    'l': 'l',
+    'little': 'l',
+    'big': 'b',
+    'b': 'b',
+    'native': (byte_order := sys.byteorder),
+    'n': byte_order,
+}
+
+
+def integer(
+    size: int | Callable = 4,
+    signed: bool = True,
+    bitwise: bool = False,
+    endianness: Literal['l', 'little', 'big', 'b', 'native', 'n'] = 'n'
+):
+    endianness = VALID_ENDIANNESSES[endianness.lower()]
+    cs = (_lib.BytesInteger, _lib.BitsInteger)[bitwise]
+    return classes.Atomic(cs(size, signed=signed, swapped=endianness == 'l'), int)

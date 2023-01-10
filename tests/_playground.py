@@ -5,9 +5,7 @@ Informal playground while developing.
 from constance import *
 
 
-#
-# # Example 1
-#
+# Example 1
 class Point2D(Struct):
     x: int
     y: int
@@ -37,4 +35,5 @@ stash = bytes(my_circle)
 
 loaded_circle = Circle.load(stash)
 
+print(loaded_circle)
 assert my_circle == loaded_circle

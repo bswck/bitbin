@@ -77,7 +77,7 @@ class Atomic(Constance):
         return self._python_type.__name__ if self._python_type else type(self._construct).__name__
 
     def construct(self):
-        return util.construct_coerce_type(self._python_type, self._construct)
+        return self._construct
 
     def subconstance(self, subconstance_cls, /, **kwargs):
         return subconstance(self, subconstance_cls, **kwargs)
@@ -145,9 +145,7 @@ class Subconstruct(Constance):
         return Array[size, self._factory]
 
     def construct(self):
-        return util.construct_coerce_type(
-            self._python_type, self._factory(*self._args, **self._kwargs)
-        )
+        return self._factory(*self._args, **self._kwargs)
 
 
 class Composite(Constance):
@@ -322,8 +320,12 @@ class Subconstance(Composite):
     _impl = None
 
     @classmethod
+    def _extraction_operator(cls, args):
+        return cls.subconstruct(args)
+
+    @classmethod
     def construct(cls):
-        raise TypeError(f'{cls.__name__} can only be used with []: {cls.__name__}[...]')
+        raise TypeError(f'{cls.__name__} can only be used with .of() or []: {cls.__name__}[...]')
 
     @classmethod
     def subconstruct(cls, *args, **kwargs):
@@ -340,8 +342,8 @@ class Subconstance(Composite):
 
     @classmethod
     def init(cls, constance_cls, instance, *args, **kwargs):
-        instance.__modified__ = modified = constance_cls(*args, **kwargs)
-        return modified if isinstance(constance_cls, Atomic) else modified._get_data_for_building()
+        instance.__bound__ = bound = constance_cls(*args, **kwargs)
+        return bound if isinstance(constance_cls, Atomic) else bound._get_data_for_building()
 
     @classmethod
     def load(cls, subconstance_cls, constance_cls, args, **kwargs):
@@ -351,7 +353,7 @@ class Subconstance(Composite):
     def repr(cls, constance_cls, bound_subconstance, instance=None, **kwds):
         return (
             bound_subconstance.type_name
-            + (f'({instance.__modified__})' if instance is not None else '')
+            + (f'({instance.__bound__})' if instance is not None else '')
         )
 
     @staticmethod
@@ -359,14 +361,12 @@ class Subconstance(Composite):
         yield from instance._get_data_for_building()
 
     @classmethod
-    def of(cls, payload=None, **kwargs):
-        if payload is None:
+    def of(cls, constance=None, **kwargs):
+        if constance is None:
             return functools.partial(cls.of, **kwargs)
-        return util.make_constance(payload).subconstance(cls, **cls.map_kwargs(kwargs))
-
-    @classmethod
-    def _extraction_operator(cls, args):
-        return cls.subconstruct(args)
+        constance = util.make_constance(constance)
+        kwargs = cls.map_kwargs(kwargs)
+        return constance.subconstance(cls, **kwargs)
 
 
 def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, **kwds):
@@ -392,17 +392,17 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, **kwds)
             return self.type_name
 
     class BoundSubconstance(Data, metaclass=SubconstanceMeta):
-        _skip_fields = ['__modified_for_building__']
+        _skip_fields = ['__build_bound__']
         _dataclass_params = {'init': False, 'repr': False}
-        __modified_for_building__: typing.Any
+        __build_bound__: typing.Any
 
         def __init__(self, *args, **kwargs):
-            self.__modified_for_building__ = subconstance_cls.init(
+            self.__build_bound__ = subconstance_cls.init(
                 constance_cls, self, *args, **kwargs
             )
 
         def _get_data_for_building(self):
-            return self.__modified_for_building__
+            return self.__build_bound__
 
         @classmethod
         def construct(cls):
@@ -524,7 +524,7 @@ def field(name, constance, **kwargs) -> dataclasses.Field:
 class ArrayLike(Subconstance):
     @staticmethod
     def init(constance_cls, instance, *inits):
-        instance.__modified__ = [
+        instance.__bound__ = [
             (
                 init if (isinstance(constance_cls, type) and isinstance(init, constance_cls))
                 else util.initialize_constance(constance_cls, init)
@@ -532,8 +532,8 @@ class ArrayLike(Subconstance):
             for init in inits
         ]
         if isinstance(constance_cls, Atomic):
-            return copy.deepcopy(instance.__modified__)
-        return [member._get_data_for_building() for member in instance.__modified__]
+            return copy.deepcopy(instance.__bound__)
+        return [member._get_data_for_building() for member in instance.__bound__]
 
     @staticmethod
     def load(subconstance_cls, constance_cls, args, **kwargs):
@@ -547,13 +547,13 @@ class ArrayLike(Subconstance):
     @classmethod
     def repr(cls, constance_cls, bound_subconstance, instance=None, **kwds):
         return super().repr(constance_cls, bound_subconstance, **kwds) + (
-            ', '.join(map(repr, instance.__modified__)).join('()')
+            ', '.join(map(repr, instance.__bound__)).join('()')
             if instance is not None else ''
         )
 
     @staticmethod
     def iter(instance):
-        yield from instance.__modified__
+        yield from instance.__bound__
 
 
 class Array(ArrayLike):
@@ -590,7 +590,7 @@ class Default(Subconstance):
 
     @classmethod
     def init(cls, constance_cls, instance, *args, **kwargs):
-        instance.__modified__ = bound_subconstance = None
+        instance.__bound__ = bound_subconstance = None
         if args or kwargs:
             bound_subconstance = super().init(constance_cls, instance, *args, **kwargs)
         return bound_subconstance
