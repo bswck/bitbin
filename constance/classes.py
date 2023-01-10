@@ -304,7 +304,7 @@ class Data(Composite):
 class _DataPrivateEntries:
     container: dataclasses.InitVar[Data] = None
     entries: dict = dataclasses.field(default_factory=dict)
-    _payload = None
+    _container = None
 
     def __post_init__(self, container: Data):
         if container is None:
@@ -312,7 +312,7 @@ class _DataPrivateEntries:
         self.set_container(container)
 
     def set_container(self, payload: Data):
-        self._payload = weakref.ref(payload)
+        self._container = weakref.ref(payload)
 
     def update(self, container: _lib.Container):
         init = {}
