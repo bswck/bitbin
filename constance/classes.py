@@ -344,14 +344,14 @@ class Subconstance(Composite):
 
     @classmethod
     def _extraction_operator(cls, args):
-        return cls.subconstruct(*args)
+        return cls.subconstruct(MISSING_MAPPER, *args)
 
     @classmethod
     def construct(cls):
         raise TypeError(f'{cls.__name__} can only be used with .of() or []: {cls.__name__}[...]')
 
     @classmethod
-    def subconstruct(cls, mapper=MISSING_MAPPER, /, *args, **kwargs):
+    def subconstruct(cls, mapper, /, *args, **kwargs):
         return cls._subconstruct_cls(
             cls.__name__,
             factory=cls._impl,
@@ -362,6 +362,8 @@ class Subconstance(Composite):
 
     @staticmethod
     def map_arguments(arguments):
+        if 'subcon' in arguments:
+            arguments.update(subcon=util.ensure_construct(arguments['subcon']))
         return arguments
 
     @classmethod
@@ -432,7 +434,7 @@ class Array(ArrayLike):
 
     @classmethod
     def _extraction_operator(cls, args):
-        return cls.subconstruct(*args)
+        return cls.subconstruct(MISSING_MAPPER, *args)
 
 
 def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args, **s_kwargs):

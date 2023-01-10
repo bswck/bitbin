@@ -371,8 +371,13 @@ class LazyBound(classes.Constance):
     """Port to construct.LazyBound"""
     _impl = _lib.LazyBound  # (subconfunc)
 
+    @staticmethod
+    def map_arguments(arguments):
+        arguments.update(subcon=lambda: util.ensure_construct(arguments['subconfunc']()))
+        return arguments
 
-class LazyStruct(classes.Constance):
+
+class LazyStruct(classes.Data):
     """Port to construct.LazyStruct"""
     _impl = _lib.LazyStruct  # (*subcons, **subconskw)
 
@@ -583,7 +588,7 @@ class Tunnel(classes.Subconstance):
     _impl = _lib.Tunnel  # (subcon)
 
 
-class Union(classes.Constance):
+class Union(classes.Data):
     """Port to construct.Union"""
     _impl = _lib.Union  # (parsefrom, *subcons, **subconskw)
 
