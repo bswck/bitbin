@@ -559,11 +559,6 @@ class Struct(classes.Constance):
     _impl = _lib.Struct  # (*subcons, **subconskw)
 
 
-class Subconstruct(classes.Subconstance):
-    """Port to construct.Subconstruct"""
-    _impl = _lib.Subconstruct  # (subcon)
-
-
 class Switch(classes.Constance):
     """Port to construct.Switch"""
     _impl = _lib.Switch  # (keyfunc, cases, default=None)
