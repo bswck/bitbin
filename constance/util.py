@@ -133,5 +133,5 @@ def initialize_constance(constance, init):
     if isinstance(constance, Atomic):
         return constance(init)
     if isinstance(init, collections.abc.Mapping):
-        return constance._load_from_args(init)
+        return constance._load_from_container(init)
     return constance(*init)

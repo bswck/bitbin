@@ -37,3 +37,5 @@ loaded_circle = Circle.load(stash)
 
 print(loaded_circle)
 assert my_circle == loaded_circle
+
+LazyCircle = LazyArray[1, Circle]
