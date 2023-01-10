@@ -362,7 +362,7 @@ class Lazy(classes.Subconstance):
     _impl = _lib.Lazy  # (subcon)
 
 
-class LazyArray(classes.Subconstance):
+class LazyArray(classes.ArrayLike):
     """Port to construct.LazyArray"""
     _impl = _lib.LazyArray  # (count, subcon)
 
