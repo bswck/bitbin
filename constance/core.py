@@ -553,7 +553,7 @@ class StringEncoded(classes.Subconstance):
     _impl = _lib.StringEncoded  # (subcon, encoding)
 
 
-class Struct(classes.Constance):
+class Struct(classes.Data):
     """Port to construct.Struct"""
     _impl = _lib.Struct  # (*subcons, **subconskw)
 
