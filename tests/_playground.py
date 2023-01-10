@@ -38,7 +38,7 @@ loaded_circle = Circle.load(stash)
 print(loaded_circle)
 assert my_circle == loaded_circle
 
-LazyCircles = LazyArray.of(Circle)
+LazyCircles = LazyArray.of(Circle, 5)
 print(LazyCircles)
 
 lazy_circles = LazyCircles([(1, 2), 2])

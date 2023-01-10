@@ -341,6 +341,7 @@ class MaybeConstructLambda:
 class Subconstance(Composite):
     _impl = None
     _subconstruct_cls = Subconstruct
+    _argument_manager_cls = SubconstructArgumentManager
 
     @classmethod
     def _extraction_operator(cls, args):
@@ -387,11 +388,12 @@ class Subconstance(Composite):
         yield from instance._get_data_for_building()
 
     @classmethod
-    def of(cls, constance=None, **kwargs):
+    def of(cls, constance=None, *args, **kwargs):
         if constance is None:
-            return functools.partial(cls.of, **kwargs)
+            return functools.partial(cls.of, *args, **kwargs)
         constance = util.make_constance(constance)
-        return constance.subconstance(cls, **kwargs)
+        mgr = cls._argument_manager_cls(cls._impl, cls.__name__, args, kwargs, cls.map_arguments)
+        return constance.subconstance(cls, *mgr.args, **mgr.kwargs)
 
 
 class ArrayLike(Subconstance):
@@ -475,7 +477,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
         @classmethod
         def construct(cls):
             s_kwargs.update(subcon=util.call_construct_method(constance_cls))
-            return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
+            return subconstance_cls.subconstruct(None, *s_args, **s_kwargs)
 
         @classmethod
         def _load_from_container(cls, container, **kwargs):
