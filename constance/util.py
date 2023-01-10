@@ -134,4 +134,6 @@ def initialize_constance(constance, init):
         return constance(init)
     if isinstance(init, collections.abc.Mapping):
         return constance._load_from_container(init)
+    if not isinstance(init, collections.abc.Iterable):
+        raise TypeError(f'cannot instantiate class {constance.__name__} with unpackable {init}')
     return constance(*init)
