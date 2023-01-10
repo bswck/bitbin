@@ -3,8 +3,8 @@ import os
 
 __all__ = (
     'DEFAULT_ENCODING',
-    'DATA_FIELDS_ATTR',
+    'FIELDS',
 )
 
 DEFAULT_ENCODING = os.getenv('CONSTANCE_ENCODING') or locale.getpreferredencoding()
-DATA_FIELDS_ATTR = '__constance_fields__'
+FIELDS = '__constance_fields__'

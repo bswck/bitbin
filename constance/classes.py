@@ -173,7 +173,7 @@ class Data(Composite):
 
     def __init_subclass__(cls, stack_level=1, env=None, extends=_MISSING_EXTENDS):
         data_fields = []
-        setattr(cls, _constants.DATA_FIELDS_ATTR, data_fields)
+        setattr(cls, _constants.FIELDS, data_fields)
 
         if extends is _MISSING_EXTENDS:
             extends = cls.__base__
@@ -226,7 +226,7 @@ class Data(Composite):
             data_fields.append(f)
 
     def __post_init__(self):
-        for f in getattr(self, _constants.DATA_FIELDS_ATTR):
+        for f in getattr(self, _constants.FIELDS):
             constance = f.metadata['constance']
             value = util.initialize_constance(constance, getattr(self, f.name))
             object.__setattr__(self, f.name, value)
@@ -270,7 +270,7 @@ class Data(Composite):
 
     @classmethod
     def construct(cls):
-        fields = map(util.call_construct_method, getattr(cls, _constants.DATA_FIELDS_ATTR))
+        fields = map(util.call_construct_method, getattr(cls, _constants.FIELDS))
         return cls._impl(*fields)
 
     @classmethod
