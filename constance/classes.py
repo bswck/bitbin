@@ -481,8 +481,8 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], /, *s_args
             return subconstance_cls.load(cls, constance_cls, container, **kwargs)
 
         @classmethod
-        def subconstance(cls, outer_wrapper_cls, /, **kwargs):
-            return subconstance(cls, outer_wrapper_cls, **kwargs)
+        def subconstance(cls, outer_subconstance_cls, /, **kwargs):
+            return subconstance(cls, outer_subconstance_cls, **kwargs)
 
         def __iter__(self):
             yield from subconstance_cls.iter(self)
