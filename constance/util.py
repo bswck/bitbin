@@ -1,4 +1,5 @@
 import collections.abc
+import functools
 import types
 import typing
 
@@ -17,7 +18,7 @@ __all__ = (
 
 
 def make_constance(python_type, qualname=None):
-    from constance import api
+    from constance import classes
 
     if python_type is None:
         raise ValueError(
@@ -28,11 +29,11 @@ def make_constance(python_type, qualname=None):
     tp = typing.get_origin(python_type)
     args = list(typing.get_args(python_type))
     if (
-        isinstance(python_type, (api.Atomic, api.SubconstructAlias))
+        isinstance(python_type, (classes.Atomic, classes.Subconstruct))
         or (
             isinstance(python_type, type)
             # and not args
-            and issubclass(python_type, api.Constance)
+            and issubclass(python_type, classes.Constance)
         )
     ):
         return python_type
@@ -49,23 +50,23 @@ def make_constance(python_type, qualname=None):
             count = None
         factories = list(map(make_constance, args))
         if issubclass(tp, types.UnionType):
-            return api.Atomic(_lib.Select(*factories[::-1]))
-        tp = make_constance.generic.get(tp, tp)
-        if isinstance(tp, type) and issubclass(tp, api.Constance):
+            return classes.Atomic(_lib.Select(*factories[::-1]))
+        tp = generic_types.dispatch(tp) or tp
+        if isinstance(tp, type) and issubclass(tp, classes.Constance):
             return tp
         if not isinstance(tp, type):
             return tp(factories, count=count)
         raise TypeError(f'{tp.__name__} type as a data field type is not supported')
 
-    atomic = make_constance.atomic.get(python_type)
+    atomic = atomic_types.dispatch(python_type)
     if atomic:
         return atomic
-
     raise TypeError(f'cannot use ambiguous non-factory type {python_type} as a data field')
 
 
-make_constance.generic = {}
-make_constance.atomic = {}
+generic_types = functools.singledispatch(None)
+
+atomic_types = functools.singledispatch(None)
 
 
 class _TypingLib:
@@ -143,7 +144,7 @@ def find_type_annotation(obj):
 
 
 def initialize_constance(constance, init):
-    from constance.api import Atomic
+    from constance.classes import Atomic
     if isinstance(constance, Atomic):
         return constance(init)
     if isinstance(init, collections.abc.Mapping):

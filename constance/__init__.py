@@ -1,29 +1,17 @@
 from constance._constants import DEFAULT_ENCODING
 
-from constance.api import *
-from constance.atomic import *
-from constance.composite import *
-from constance.data import *
-from constance.generic import *
-from constance.modifiers import *
+from constance.classes import *
+from constance.impls import *
 from constance.util import *
 
-from constance import api, atomic, composite, data, generic, modifiers, util
+from constance import classes, impls, util
 
 __all__ = (
-    'api',
-    'atomic',
-    'composite',
-    'data',
-    'generic',
-    'modifiers',
+    'classes',
+    'impls',
     'util',
 
-    *api.__all__,
-    *atomic.__all__,
-    *composite.__all__,
-    *data.__all__,
-    *generic.__all__,
-    *modifiers.__all__,
+    *classes.__all__,
+    *impls.__all__,
     *util.__all__,
 )
