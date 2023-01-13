@@ -81,13 +81,13 @@ class Atomic(Constance):
                 f'cannot cast {obj} to the desired type'
                 + (' ' + self._python_type.__name__.join('()') if self._python_type else '')
             )
+            guilty = None
             if self._cast:
-                raise err from exc
-            else:
-                raise err from None
+                guilty = exc
+            raise err from guilty
 
-    def __getitem__(self, size):
-        return Array[size, self._construct]
+    def __getitem__(self, count):
+        return Array.of(self, count=count)
 
     def __repr__(self):
         return f'{type(self).__name__}({type(self._construct).__name__})'
@@ -184,7 +184,7 @@ class LazyDataProxy:
 
     def _wake_up(self):
         if self.__obj is None:
-            self.__obj = self.__cls._load_from_container(self.__container, **self.__kwargs)
+            self.__obj = self.__cls._eager_load(self.__container, **self.__kwargs)
 
     def __getattr__(self, item):
         self._wake_up()
@@ -196,7 +196,7 @@ class LazyDataProxy:
 
     def __repr__(self):
         if self.__obj is None:
-            return f'LazyUnloaded<{self.__cls}>'
+            return f'LazyData<{self.__cls}>(?)'
         return repr(self.__obj)
 
 
@@ -213,6 +213,12 @@ class Data(Composite):
     _dataclass_params = None
     _lazy_proxy_cls = LazyDataProxy
 
+    def __post_init__(self):
+        for f in getattr(self, _constants.FIELDS):
+            constance = f.metadata['constance']
+            value = util.initialize_constance(constance, getattr(self, f.name))
+            object.__setattr__(self, f.name, value)
+
     def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
         data_fields = []
         setattr(cls, _constants.FIELDS, data_fields)
@@ -221,7 +227,30 @@ class Data(Composite):
             extends = cls.__base__
 
         dataclass_fields = []
+        dataclasses.dataclass(cls, **(cls._dataclass_params or {}))
 
+        cls._configure_annotations(extends)
+        cls._setup_field_environment(stack_level+1, env or {})
+
+        type_hints = typing.get_type_hints(cls, cls._field_environment)
+
+        dataclass_fields.extend(dataclasses.fields(cls))  # noqa
+
+        for f in dataclass_fields:
+            if f.name in cls._skip_fields:
+                continue
+            constance = util.make_constance(type_hints.get(f.name))
+            f.metadata = dict(
+                **f.metadata,
+                constance=constance,
+                construct=util.get_field_construct(
+                    constance, f.name
+                )
+            )
+            data_fields.append(f)
+
+    @classmethod
+    def _configure_annotations(cls, extends=None):
         if cls._field_names is not None:
 
             cls._field_names = [
@@ -246,32 +275,6 @@ class Data(Composite):
                             f'{cls.__name__}.{field_name} is missing a type annotation'
                         ) from None
                     cls.__annotations__[field_name] = annotation
-
-        dataclasses.dataclass(cls, **(cls._dataclass_params or {}))
-
-        cls._setup_field_environment(stack_level+1, env or {})
-        type_hints = typing.get_type_hints(cls, cls._field_environment)
-
-        dataclass_fields.extend(dataclasses.fields(cls))  # noqa
-
-        for f in dataclass_fields:
-            if f.name in cls._skip_fields:
-                continue
-            constance = util.make_constance(type_hints.get(f.name))
-            f.metadata = dict(
-                **f.metadata,
-                constance=constance,
-                construct=util.get_field_construct(
-                    constance, f.name
-                )
-            )
-            data_fields.append(f)
-
-    def __post_init__(self):
-        for f in getattr(self, _constants.FIELDS):
-            constance = f.metadata['constance']
-            value = util.initialize_constance(constance, getattr(self, f.name))
-            object.__setattr__(self, f.name, value)
 
     @classmethod
     def _setup_field_environment(cls, stack_level=2, user_env=None):
@@ -319,16 +322,20 @@ class Data(Composite):
     def load(cls, data, **kwargs):
         construct = cls.construct()
         container = construct.parse(data)
-        return cls._load_from_container(container, **kwargs)
+        return cls._load(container, **kwargs)
 
     @classmethod
-    def _load_from_container(cls, container, **kwargs):
+    def _load(cls, container, **kwargs):
         if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
             return cls._lazy_proxy_cls(cls, container, kwargs)
+        return cls._eager_load(container, **kwargs)
+
+    @classmethod
+    def _eager_load(cls, container, **kwargs):
         private_entries = _DataPrivateEntries()
         init = private_entries.update(container)
         instance = cls(**init, **kwargs)
-        private_entries.set_container(instance)
+        private_entries.set_constance(instance)
         return instance
 
     def build(self, **context):
@@ -338,17 +345,17 @@ class Data(Composite):
 
 @dataclasses.dataclass
 class _DataPrivateEntries:
-    container: dataclasses.InitVar[Data] = None
+    constance: dataclasses.InitVar[Data] = None
     entries: dict = dataclasses.field(default_factory=dict)
-    _container = None
+    _constance = None
 
-    def __post_init__(self, container: Data):
-        if container is None:
+    def __post_init__(self, constance: Data):
+        if constance is None:
             return
-        self.set_container(container)
+        self.set_constance(constance)
 
-    def set_container(self, payload: Data):
-        self._container = weakref.ref(payload)
+    def set_constance(self, constance: Data):
+        self._constance = weakref.ref(constance)
 
     def update(self, container: _lib.Container):
         init = {}
@@ -358,6 +365,68 @@ class _DataPrivateEntries:
             else:
                 init[key] = value
         return init
+
+
+class FieldListData(Data):
+    fields = None
+
+    def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
+        if extends is MISSING_EXTENDS:
+            extends = cls.__base__
+        orig_annotations = cls.__annotations__
+        cls.__annotations__ = {
+            name: (
+                auto_field.metadata.get('constance') or auto_field.type
+                if isinstance(auto_field, dataclasses.Field) else auto_field
+            )
+            for idx, auto_field in enumerate(cls._resolve_fields(extends), start=1)
+            if (
+               name := getattr(auto_field, 'name', cls._autocreate_field_name(auto_field, idx))
+            ) != 'fields'
+        }
+
+        try:
+            super().__init_subclass__(stack_level+1, env)
+        finally:
+            cls.__annotations__ = orig_annotations
+
+    def __getitem__(self, item):
+        seq = list(self)
+        return seq[item]
+
+    def __iter__(self):
+        yield from self._get_data_for_building()
+
+    @classmethod
+    def _eager_load(cls, container, **kwargs):
+        return cls(*container, **kwargs)
+
+    @classmethod
+    def _resolve_fields(cls, extends=None):
+        super_fields = getattr(extends, 'fields', None) or ()
+        fields = [*super_fields, *(cls.fields or ())]
+        return fields
+
+    @classmethod
+    def _autocreate_field_name(cls, _f, i):
+        return f'field_{i}'
+
+    def _get_data_for_building(self):
+        return list(super()._get_data_for_building().values())
+
+    @classmethod
+    def from_fields(cls, fields, name=None):
+        return type(name or cls.__name__, (cls,), {'fields': fields})
+
+    @classmethod
+    def add_field(cls, f):
+        cls.fields.append(f)
+        cls.__init_subclass__(stack_level=2)
+
+    @classmethod
+    def remove_field(cls, f):
+        cls.fields.remove(f)
+        cls.__init_subclass__(stack_level=2)
 
 
 class MaybeConstructLambda:
@@ -377,7 +446,7 @@ class MaybeConstructLambda:
 class Subconstance(Composite):
     _impl = None
     _subconstruct_cls = Subconstruct
-    _argument_manager_cls = SubconstructArgumentManager
+    # _argument_manager_cls = SubconstructArgumentManager
 
     @classmethod
     def _extraction_operator(cls, args):
@@ -427,10 +496,6 @@ class Subconstance(Composite):
         if constance is None:
             return functools.partial(cls.of, *args, **kwargs)
         constance = util.make_constance(constance)
-        # mgr = cls._argument_manager_cls(
-        #     cls._impl, cls.__name__, args, kwargs, cls.map_arguments,
-        #     examine_subcon=False,
-        # )
         return constance.subconstance(cls, *args, **kwargs)
 
 
@@ -453,7 +518,7 @@ class ArrayLike(Subconstance):
         return subconstance_cls(*(
             constance_cls(sub_args)
             if isinstance(constance_cls, Atomic)
-            else constance_cls._load_from_container(sub_args, **kwargs)
+            else constance_cls._load(sub_args, **kwargs)
             for sub_args in args
         ))
 
@@ -518,9 +583,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
             return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
-        def _load_from_container(cls, container, **kwargs):
-            if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
-                return cls._lazy_proxy_cls(cls, container, kwargs)
+        def _eager_load(cls, container, **kwargs):
             return subconstance_cls.load(cls, constance_cls, container, **kwargs)
 
         @classmethod

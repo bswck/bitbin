@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import dataclasses
+import functools
 import sys
 import typing
 
@@ -488,60 +488,16 @@ class Seek(classes.Constance):
     _impl = _lib.Seek  # (at, whence=0)
 
 
-class Select(classes.Constance):
+class Select(classes.FieldListData):
     """Port to construct.Select"""
     _impl = _lib.Select  # (*subcons, **subconskw)
-
-
-class Sequence(classes.Data):
-    """Port to construct.Sequence"""
-    _impl = _lib.Sequence  # (*subcons, **subconskw)
-
     fields = None
 
-    @classmethod
-    def _load_from_container(cls, container, **kwargs):
-        if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
-            return cls._lazy_proxy_cls(cls, container, kwargs)
-        return cls(*container, **kwargs)
 
-    @classmethod
-    def _autocreate_field_name(cls, _f, i):
-        return f'field_{i}'
-
-    def _get_data_for_building(self):
-        return list(super()._get_data_for_building().values())
-
-    def __getitem__(self, item):
-        return list(self)[item]
-
-    def __iter__(self):
-        yield from self._get_data_for_building()
-
-    def __init_subclass__(cls, stack_level=1, env=None, extends=classes.MISSING_EXTENDS):
-        if extends is classes.MISSING_EXTENDS:
-            extends = cls.__base__
-        super_fields = (
-            (getattr(extends, 'fields', None) or ())
-            if extends is not None else ()
-        )
-        fields = [*super_fields, *(cls.fields or ())]
-
-        orig_annotations = cls.__annotations__
-        cls.__annotations__ = {
-            name: (
-                f.metadata.get('constance') or f.type
-                if isinstance(f, dataclasses.Field) else f
-            )
-            for i, f in enumerate(fields, start=1)
-            if (name := getattr(f, 'name', cls._autocreate_field_name(f, i))) != 'fields'
-        }
-        env.update(vars(cls))
-
-        try:
-            super().__init_subclass__(stack_level+1, env)
-        finally:
-            cls.__annotations__ = orig_annotations
+class Sequence(classes.FieldListData):
+    """Port to construct.Sequence"""
+    _impl = _lib.Sequence  # (*subcons, **subconskw)
+    fields = None
 
 
 class Slicing(classes.Subconstance):
@@ -564,9 +520,51 @@ class Struct(classes.Data):
     _impl = _lib.Struct  # (*subcons, **subconskw)
 
 
+MISSING_KEY = object()
+
+
 class Switch(classes.Constance):
     """Port to construct.Switch"""
     _impl = _lib.Switch  # (keyfunc, cases, default=None)
+    cases = None
+
+    @classmethod
+    def construct(cls):
+        return cls._impl(
+            classes.MaybeConstructLambda(cls.key), cls.cases,
+            classes.MaybeConstructLambda(cls.default),
+        )
+
+    @classmethod
+    def default(cls):
+        return _lib.Pass
+
+    @classmethod
+    def key(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def autokey(cls, _constance_cls):
+        return len(cls.cases)
+
+    @classmethod
+    def register(cls, key=MISSING_KEY, constance_cls=None):
+        if constance_cls is None:
+            return functools.partial(cls.register, key=key)
+        if key is MISSING_KEY:
+            key = cls.autokey(constance_cls)
+        if key in cls.cases:
+            return cls.register_overload(cls, key, constance_cls)
+        cls.cases[key] = constance_cls
+        return constance_cls
+
+    @classmethod
+    def register_overload(cls, key, constance_cls):
+        overload_case = cls.cases[key]
+        if not isinstance(overload_case, Select):
+            overload_case = Select.from_fields([overload_case])
+        overload_case.add_field(constance_cls)
+        return constance_cls
 
 
 class SymmetricAdapter(classes.Subconstance):
