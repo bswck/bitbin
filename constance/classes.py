@@ -22,6 +22,7 @@ __all__ = (
     'Subconstruct',
 
     'Data',
+    'FieldListData',
     'Subconstance',
     'subconstance',
 
@@ -176,7 +177,7 @@ class Composite(Constance):
 
 
 class LazyDataProxy:
-    def __init__(self, data_cls, container, kwargs):
+    def __init__(self, data_cls, container: _lib.LazyContainer | _lib.LazyListContainer, kwargs):
         self.__cls = data_cls
         self.__container = container
         self.__kwargs = kwargs
@@ -196,7 +197,7 @@ class LazyDataProxy:
 
     def __repr__(self):
         if self.__obj is None:
-            return f'LazyData<{self.__cls}>(?)'
+            return f'<lazy instance of {self.__cls}>'
         return repr(self.__obj)
 
 
