@@ -28,3 +28,5 @@ for mock_val in ('string', 255):
     print(p, end=' -> ')
     r = MyStruct.load(p)
     print(r)
+
+

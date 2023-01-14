@@ -173,24 +173,24 @@ Float64l = classes.Atomic(_lib.Float64l, float)
 Float64b = classes.Atomic(_lib.Float64b, float)
 Float64n = classes.Atomic(_lib.Float64n, float)
 
-char = Int8sn
-unsigned_char = Int8un
+char = Int8sb
+unsigned_char = Int8ub
 
-short = Int16sn
-unsigned_short = Int16un
+short = Int16sb
+unsigned_short = Int16ub
 
-long = Int32sn
-unsigned_long = Int32un
+long = Int32sb
+unsigned_long = Int32ub
 
-long_long = Int64sn
-unsigned_long_long = Int64un
+long_long = Int64sb
+unsigned_long_long = Int64ub
 
-double = Float64n
+double = Float64b
 
 atomic_types, generic_types = util.atomic_types, util.generic_types
 
-atomic_types.register(int, classes.Atomic(_lib.Int32sn, int))
-atomic_types.register(float, classes.Atomic(_lib.Float32n, float))
+atomic_types.register(int, classes.Atomic(_lib.Int32sb, int))
+atomic_types.register(float, classes.Atomic(_lib.Float32b, float))
 atomic_types.register(
     str, classes.Atomic(_lib.CString(_constants.DEFAULT_ENCODING), str)
 )
