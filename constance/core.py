@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import functools
 import sys
 import typing
 
@@ -109,7 +108,6 @@ __all__ = (
     'StopIf',
     'StringEncoded',
     'Struct',
-    'Switch',
     'SymmetricAdapter',
     'TimestampAdapter',
     'Transformed',
@@ -518,53 +516,6 @@ class StringEncoded(classes.Subconstance):
 class Struct(classes.Data):
     """Port to construct.Struct"""
     _impl = _lib.Struct  # (*subcons, **subconskw)
-
-
-MISSING_KEY = object()
-
-
-class Switch(classes.Constance):
-    """Port to construct.Switch"""
-    _impl = _lib.Switch  # (keyfunc, cases, default=None)
-    cases = None
-
-    @classmethod
-    def construct(cls):
-        return cls._impl(
-            classes.MaybeConstructLambda(cls.key), cls.cases,
-            classes.MaybeConstructLambda(cls.default),
-        )
-
-    @classmethod
-    def default(cls):
-        return _lib.Pass
-
-    @classmethod
-    def key(cls):
-        raise NotImplementedError
-
-    @classmethod
-    def autokey(cls, _constance_cls):
-        return len(cls.cases)
-
-    @classmethod
-    def register(cls, key=MISSING_KEY, constance_cls=None):
-        if constance_cls is None:
-            return functools.partial(cls.register, key=key)
-        if key is MISSING_KEY:
-            key = cls.autokey(constance_cls)
-        if key in cls.cases:
-            return cls.register_overload(cls, key, constance_cls)
-        cls.cases[key] = constance_cls
-        return constance_cls
-
-    @classmethod
-    def register_overload(cls, key, constance_cls):
-        overload_case = cls.cases[key]
-        if not isinstance(overload_case, Select):
-            overload_case = Select.from_fields([overload_case])
-        overload_case.add_field(constance_cls)
-        return constance_cls
 
 
 class SymmetricAdapter(classes.Subconstance):

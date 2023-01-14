@@ -28,6 +28,7 @@ __all__ = (
 
     'Array',
     'ArrayLike',
+    'Switch',
 
     'field',
 )
@@ -37,6 +38,7 @@ MISSING_CAST = object()
 MISSING_EXTENDS = object()
 MISSING_MAPPER = object()
 MISSING_LAMBDA = object()
+MISSING_KEY = object()
 
 
 class Constance:
@@ -72,7 +74,17 @@ class Atomic(Constance):
     def subconstance(self, subconstance_cls, *args, **kwargs):
         return subconstance(self, subconstance_cls, *args, **kwargs)
 
-    def __call__(self, obj):
+    def __call__(self, obj, _context=None):
+        return self._load(obj)
+
+    def _load(self, obj, context=None):
+        if callable(obj):
+            return LazyDataProxy(self, obj)
+        return self._eager_load(obj, context)
+
+    def _eager_load(self, obj, _context=None):
+        if callable(obj):
+            obj = obj()
         if self._python_type and isinstance(obj, self._python_type):
             return obj
         try:
@@ -177,28 +189,37 @@ class Composite(Constance):
 
 
 class LazyDataProxy:
-    def __init__(self, data_cls, container: _lib.LazyContainer | _lib.LazyListContainer, kwargs):
-        self.__cls = data_cls
-        self.__container = container
+    def __init__(self, constance, argument, context, kwargs):
+        self.__constance = constance
+        self.__argument = argument
         self.__kwargs = kwargs
-        self.__obj = None
+        self.__context = context
+        self.__object = None
 
     def _wake_up(self):
-        if self.__obj is None:
-            self.__obj = self.__cls._eager_load(self.__container, **self.__kwargs)
+        if self.__object is None:
+            self.__object = self.__constance._eager_load(
+                self.__argument, self.__context, **self.__kwargs
+            )
 
     def __getattr__(self, item):
         self._wake_up()
-        return getattr(self.__obj, item)
+        return getattr(self.__object, item)
 
     def __call__(self):
         self._wake_up()
-        return self.__obj
+        return self.__object
 
     def __repr__(self):
-        if self.__obj is None:
-            return f'<lazy instance of {self.__cls}>'
-        return repr(self.__obj)
+        if self.__object is None:
+            return f'<lazy instance of {self.__constance}>'
+        return repr(self.__object)
+
+
+def _load_into(cls, container, context=None, **kwargs):
+    if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
+        return cls._lazy_proxy_cls(cls, container, context, kwargs)
+    return cls._eager_load(container, context, **kwargs)
 
 
 class Data(Composite):
@@ -213,11 +234,20 @@ class Data(Composite):
     _field_names = []  # type: typing.ClassVar[list[str]]
     _dataclass_params = None
     _lazy_proxy_cls = LazyDataProxy
+    _default_context = None
+    _private_entries = None
+    _container = None
+    _context = None
 
     def __post_init__(self):
+        container = self._container
         for f in getattr(self, _constants.FIELDS):
             constance = f.metadata['constance']
-            value = util.initialize_constance(constance, getattr(self, f.name))
+            if container is None:
+                container = _lib.Container(self._get_data_for_building())
+            value = util.initialize_constance(
+                constance, getattr(self, f.name), container
+            )
             object.__setattr__(self, f.name, value)
 
     def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
@@ -249,6 +279,8 @@ class Data(Composite):
                 )
             )
             data_fields.append(f)
+
+        cls._setup_default_context()
 
     @classmethod
     def _configure_annotations(cls, extends=None):
@@ -290,6 +322,19 @@ class Data(Composite):
             cls._field_environment = {}
         cls._field_environment.update(env)
 
+    @classmethod
+    def _setup_default_context(cls, extends=None):
+        default_context = cls._default_context
+        if default_context is None:
+            default_context = {}
+        cls._default_context = {
+            **(getattr(extends, '_default_context', None) or {}),
+            **default_context
+        }
+
+    def set_defaults(self, **context):
+        self._default_context.update(context)
+
     def _get_data_for_building(self):
         data = dataclasses.asdict(self)  # noqa
         for skip_field in self._skip_fields:
@@ -305,7 +350,7 @@ class Data(Composite):
         return super()._extraction_operator(item)
 
     def __bytes__(self):
-        return self.build()
+        return self.build(**self._default_context)
 
     def __iter__(self):
         yield from self._get_data_for_building()
@@ -326,21 +371,24 @@ class Data(Composite):
         return cls._load(container, **kwargs)
 
     @classmethod
-    def _load(cls, container, **kwargs):
-        if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
-            return cls._lazy_proxy_cls(cls, container, kwargs)
-        return cls._eager_load(container, **kwargs)
+    def _load(cls, container, context=None, /, **kwargs):
+        return _load_into(cls, container, context, **kwargs)
 
     @classmethod
-    def _eager_load(cls, container, **kwargs):
+    def _eager_load(cls, container, context=None, /, **kwargs):
         private_entries = _DataPrivateEntries()
         init = private_entries.update(container)
-        instance = cls(**init, **kwargs)
+        instance = object.__new__(cls)
+        instance._container = container
+        instance._context = context
+        instance.__init__(**init, **kwargs)
         private_entries.set_constance(instance)
+        instance._private_entries = private_entries
         return instance
 
-    def build(self, **context):
+    def build(self, **spec_context):
         construct = self.construct()
+        context = {**self._default_context, **spec_context}
         return construct.build(self._get_data_for_building(), **context)
 
 
@@ -399,7 +447,7 @@ class FieldListData(Data):
         yield from self._get_data_for_building()
 
     @classmethod
-    def _eager_load(cls, container, **kwargs):
+    def _eager_load(cls, container, _context=None, /, **kwargs):
         return cls(*container, **kwargs)
 
     @classmethod
@@ -517,9 +565,7 @@ class ArrayLike(Subconstance):
     @staticmethod
     def load(subconstance_cls, constance_cls, args, **kwargs):
         return subconstance_cls(*(
-            constance_cls(sub_args)
-            if isinstance(constance_cls, Atomic)
-            else constance_cls._load(sub_args, **kwargs)
+            util.initialize_constance(constance_cls, sub_args, subconstance_cls, **kwargs)
             for sub_args in args
         ))
 
@@ -584,7 +630,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
             return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
-        def _eager_load(cls, container, **kwargs):
+        def _eager_load(cls, container, _context=None, /, **kwargs):
             return subconstance_cls.load(cls, constance_cls, container, **kwargs)
 
         @classmethod
@@ -604,6 +650,83 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
             )
 
     return BoundSubconstance
+
+
+class ConstructCaseDict(dict):
+    def values(self):
+        yield from map(util.ensure_construct, super().values())
+
+    def __getitem__(self, item):
+        return util.ensure_construct(self[item])
+
+    def get(self, item, default=None):
+        return util.ensure_construct_or_none(super().get(item, default))
+
+
+class Switch(Constance):
+    """Port to construct.Switch"""
+    _impl = _lib.Switch  # (keyfunc, cases, default=None)
+    _lazy_proxy_cls = LazyDataProxy
+    cases = None
+
+    @classmethod
+    def construct(cls):
+        return cls._impl(
+            cls.key,
+            ConstructCaseDict(cls.cases),
+            cls.default()
+        )
+
+    @classmethod
+    def default(cls):
+        return _lib.Error
+
+    @classmethod
+    def key(cls, context):
+        raise NotImplementedError
+
+    @classmethod
+    def autokey(cls, _constance_cls):
+        return len(cls.cases)
+
+    @classmethod
+    def register(cls, key=MISSING_KEY, constance_cls=None):
+        if constance_cls is None:
+            return functools.partial(cls.register, key=key)
+        constance_cls = util.make_constance(constance_cls)
+        if key is MISSING_KEY:
+            key = cls.autokey(constance_cls)
+        if key in cls.cases:
+            return cls._register_overload(key, constance_cls)
+        cls.cases[key] = constance_cls
+        return constance_cls
+
+    @classmethod
+    def _register_overload(cls, key, constance_cls):
+        from constance.core import Select
+        overload_case = cls.cases[key]
+        if not isinstance(overload_case, Select):
+            overload_case = Select.from_fields([overload_case])
+        if constance_cls in overload_case:
+            return constance_cls
+        overload_case.add_field(constance_cls)
+        return constance_cls
+
+    @classmethod
+    def _load(cls, container, context, /, **kwargs):
+        return _load_into(cls, container, context, **kwargs)
+
+    @classmethod
+    def _eager_load(cls, container, context, /, **kwargs):
+        return util.initialize_constance(cls.cases[cls.key(context)], container, **kwargs)
+
+    def __init_subclass__(cls, stack_level=1, extends=MISSING_EXTENDS):
+        if extends is MISSING_EXTENDS:
+            extends = cls.__base__
+        cases = cls.cases
+        if cases is None:
+            cases = {}
+        cls.cases = {**(getattr(extends, 'cases', None) or {}), **cases}
 
 
 class Generic:

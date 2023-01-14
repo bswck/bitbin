@@ -135,12 +135,16 @@ def find_type_annotation(obj):
     return annotation
 
 
-def initialize_constance(constance, init):
-    from constance.classes import Atomic
+def initialize_constance(constance, initializer, context=None, /, **kwargs):
+    from constance.classes import Atomic, Switch
+    if isinstance(initializer, collections.abc.Mapping) or (
+        isinstance(constance, type) and issubclass(constance, Switch)
+    ):
+        return constance._load(initializer, context, **kwargs)
     if isinstance(constance, Atomic):
-        return constance(init)
-    if isinstance(init, collections.abc.Mapping):
-        return constance._load(init)
-    if not isinstance(init, collections.abc.Iterable):
-        raise TypeError(f'cannot instantiate class {constance.__name__} with unpackable {init}')
-    return constance(*init)
+        return constance(initializer, context, **kwargs)
+    if not isinstance(initializer, collections.abc.Iterable):
+        raise TypeError(
+            f'cannot instantiate class {constance.__name__} with {initializer}'
+        )
+    return constance(*initializer, context, **kwargs)
