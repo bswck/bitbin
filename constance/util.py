@@ -1,4 +1,5 @@
 import collections.abc
+import dataclasses
 import functools
 import types
 import typing
@@ -94,24 +95,14 @@ class _TypingLib:
 
 def get_field_construct(constance, name):
     construct = _lib.extractfield(call_construct_method(constance))
-    if not construct:
-        raise ValueError
+    assert construct
     if name:
         return _lib.Renamed(construct, name)
     return construct
 
 
-def call_construct_method(f):
-    try:
-        construct = f.construct
-    except AttributeError:
-        construct = f.metadata.get('construct')
-    ret = None
-    if construct:
-        ret = construct if isinstance(construct, _lib.Construct) else construct()
-    if ret is None:
-        raise ValueError(f'{f}.construct() is unknown or returned None')
-    return ret
+def call_construct_method(constance_cls):
+    return constance_cls.construct()
 
 
 def ensure_construct(obj):

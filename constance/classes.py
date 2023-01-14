@@ -218,7 +218,7 @@ class LazyDataProxy:
 
 def _load_into(cls, container, context=None, **kwargs):
     if isinstance(container, (_lib.LazyContainer, _lib.LazyListContainer)):
-        return cls._lazy_proxy_cls(cls, container, context, kwargs)
+        return cls._lazy_load(cls, container, context, kwargs)
     return cls._eager_load(container, context, **kwargs)
 
 
@@ -233,11 +233,11 @@ class Data(Composite):
     _skip_fields = None  # type: typing.ClassVar[list[str]]
     _field_names = []  # type: typing.ClassVar[list[str]]
     _dataclass_params = None
-    _lazy_proxy_cls = LazyDataProxy
+    _lazy_load = LazyDataProxy
     _default_context = None
     _private_entries = None
     _container = None
-    _context = None
+    _context = _lib.Container()
 
     def __post_init__(self):
         context = self._container
@@ -275,9 +275,7 @@ class Data(Composite):
             f.metadata = dict(
                 **f.metadata,
                 constance=constance,
-                construct=util.get_field_construct(
-                    constance, f.name
-                )
+                construct=util.get_field_construct(constance, f.name)
             )
             data_fields.append(f)
 
@@ -362,7 +360,10 @@ class Data(Composite):
 
     @classmethod
     def construct(cls):
-        fields = map(util.call_construct_method, getattr(cls, _constants.FIELDS))
+        fields = (
+            util.get_field_construct(f.metadata['constance'], name=f.name)
+            for f in getattr(cls, _constants.FIELDS)
+        )
         return cls._impl(*fields)
 
     @classmethod
@@ -673,7 +674,7 @@ class ConstructCaseDict(dict):
 class Switch(Constance):
     """Port to construct.Switch"""
     _impl = _lib.Switch  # (keyfunc, cases, default=None)
-    _lazy_proxy_cls = LazyDataProxy
+    _lazy_load = LazyDataProxy
     cases = None
 
     @classmethod
@@ -697,7 +698,7 @@ class Switch(Constance):
         return len(cls.cases)
 
     @classmethod
-    def register(cls, key=MISSING_KEY, constance_cls=None):
+    def register(cls, constance_cls=None, *, key=MISSING_KEY):
         if constance_cls is None:
             return functools.partial(cls.register, key=key)
         constance_cls = util.make_constance(constance_cls)
