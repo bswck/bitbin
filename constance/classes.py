@@ -634,7 +634,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
 
         @classmethod
         def construct(cls):
-            s_kwargs.update(subcon=util.call_construct_method(constance_cls))
+            s_kwargs.update(subcon=constance_cls.construct())
             return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
@@ -752,12 +752,12 @@ class Generic:
 
         if count is None:
             return Atomic(
-                _lib.GreedyRange(util.call_construct_method(constance)),
+                _lib.GreedyRange(constance.construct()),
                 python_type=self._python_type
             )
 
         return Atomic(
-            _lib.Array(count, util.call_construct_method(constance)),
+            _lib.Array(count, constance.construct()),
             python_type=self._python_type
         )
 
