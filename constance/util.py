@@ -136,10 +136,8 @@ def find_type_annotation(obj):
 
 
 def initialize_constance(constance, initializer, context=None, /, **kwargs):
-    from constance.classes import Atomic, Switch
-    if isinstance(initializer, collections.abc.Mapping) or (
-        isinstance(constance, type) and issubclass(constance, Switch)
-    ):
+    from constance.classes import Atomic
+    if hasattr(constance, '_load'):
         return constance._load(initializer, context, **kwargs)
     if isinstance(constance, Atomic):
         return constance(initializer, context, **kwargs)

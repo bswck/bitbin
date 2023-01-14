@@ -240,13 +240,14 @@ class Data(Composite):
     _context = None
 
     def __post_init__(self):
-        container = self._container
+        context = self._container
         for f in getattr(self, _constants.FIELDS):
             constance = f.metadata['constance']
-            if container is None:
-                container = _lib.Container(self._get_data_for_building())
+            if context is None:
+                context = _lib.Container(self._get_data_for_building())
+            context['_'] = self._context
             value = util.initialize_constance(
-                constance, getattr(self, f.name), container
+                constance, getattr(self, f.name), context
             )
             object.__setattr__(self, f.name, value)
 
@@ -375,13 +376,19 @@ class Data(Composite):
         return _load_into(cls, container, context, **kwargs)
 
     @classmethod
-    def _eager_load(cls, container, context=None, /, **kwargs):
+    def _eager_load(cls, container, context=None, /, **kwds):
         private_entries = _DataPrivateEntries()
-        init = private_entries.update(container)
+        if isinstance(container, dict):
+            args = ()
+            kwargs = private_entries.update(container)
+        else:
+            kwargs = {}
+            args = container
         instance = object.__new__(cls)
-        instance._container = container
+        if callable(getattr(container, 'items', None)):
+            instance._container = _lib.Container(container)
         instance._context = context
-        instance.__init__(**init, **kwargs)
+        instance.__init__(*args, **kwargs, **kwds)
         private_entries.set_constance(instance)
         instance._private_entries = private_entries
         return instance
@@ -447,8 +454,8 @@ class FieldListData(Data):
         yield from self._get_data_for_building()
 
     @classmethod
-    def _eager_load(cls, container, _context=None, /, **kwargs):
-        return cls(*container, **kwargs)
+    def _eager_load(cls, container, _context=None, /, **kwds):
+        return cls(*container, **kwds)
 
     @classmethod
     def _resolve_fields(cls, extends=None):
@@ -630,8 +637,8 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
             return subconstance_cls.subconstruct(MISSING_MAPPER, *s_args, **s_kwargs)
 
         @classmethod
-        def _eager_load(cls, container, _context=None, /, **kwargs):
-            return subconstance_cls.load(cls, constance_cls, container, **kwargs)
+        def _eager_load(cls, container, _context=None, /, **kwds):
+            return subconstance_cls.load(cls, constance_cls, container, **kwds)
 
         @classmethod
         def subconstance(cls, outer_subconstance_cls, /, **kwargs):
