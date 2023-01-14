@@ -489,7 +489,45 @@ class Seek(classes.Constance):
 class Select(classes.FieldListData):
     """Port to construct.Select"""
     _impl = _lib.Select  # (*subcons, **subconskw)
+    _dataclass_params = {'init': False, 'repr': False}
+
     fields = None
+
+    def __init__(self, container, context, **kwds):
+        data_missing = object()
+        data = data_missing
+        fs = self.fields._fields_by_name.values()
+        if isinstance(
+            container,
+            (*(cs for cs in map(util.ensure_constance_of_field, fs) if isinstance(cs, type)),)
+        ):
+            data = container
+        else:
+            for f in fs:
+                constance = f.metadata['constance']
+                try:
+                    data = util.initialize_constance(constance, container, context, **kwds)
+                except TypeError:
+                    continue
+                else:
+                    break
+            else:
+                if data is data_missing:
+                    raise TypeError(
+                        'can\'t instantiate any member of '
+                        f'{type(self).__name__} instance with {container}'
+                    )
+        self._data = data
+
+    def _data_for_building(self):
+        return util.traverse_data_for_building(self._data)
+
+    @classmethod
+    def _eager_load(cls, container, context=None, /, **custom_kwargs):
+        return cls(container, context, **custom_kwargs)
+
+    def __repr__(self):
+        return repr(self._data)
 
 
 class Sequence(classes.FieldListData):
