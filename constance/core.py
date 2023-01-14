@@ -17,16 +17,20 @@ if typing.TYPE_CHECKING:
 __all__ = (
     'Int8sl',
     'Int8sb',
-    'Int8sn', 'char',
+    'Int8sn',
+    'char',
     'Int8ul',
     'Int8ub',
-    'Int8un', 'unsigned_char',
+    'Int8un',
+    'unsigned_char',
     'Int16sl',
     'Int16sb',
-    'Int16sn', 'short',
+    'Int16sn',
+    'short',
     'Int16ul',
     'Int16ub',
-    'Int16un', 'unsigned_short',
+    'Int16un',
+    'unsigned_short',
     'Int24sl',
     'Int24sb',
     'Int24sn',
@@ -35,23 +39,27 @@ __all__ = (
     'Int24un',
     'Int32sl',
     'Int32sb',
-    'Int32sn', 'long',
+    'Int32sn',
+    'long',
     'Int32ul',
     'Int32ub',
-    'Int32un', 'unsigned_long',
+    'Int32un',
+    'unsigned_long',
     'Int64sl',
     'Int64sb',
-    'Int64sn', 'long_long',
+    'Int64sn',
+    'long_long',
     'Int64ul',
     'Int64ub',
-    'Int64un', 'unsigned_long_long',
+    'Int64un',
+    'unsigned_long_long',
     'Float32l',
     'Float32b',
     'Float32n',
     'Float64l',
     'Float64b',
-    'Float64n', 'double',
-
+    'Float64n',
+    'double',
     'Adapter',
     'Aligned',
     'BitsInteger',
@@ -115,6 +123,7 @@ __all__ = (
     'Union',
     'Validator',
 )
+
 
 def _char_cast(obj):
     if isinstance(obj, str):
@@ -182,7 +191,9 @@ atomic_types, generic_types = util.atomic_types, util.generic_types
 
 atomic_types.register(int, classes.Atomic(_lib.Int32sn, int))
 atomic_types.register(float, classes.Atomic(_lib.Float32n, float))
-atomic_types.register(str, classes.Atomic(_lib.CString(_constants.DEFAULT_ENCODING), str))
+atomic_types.register(
+    str, classes.Atomic(_lib.CString(_constants.DEFAULT_ENCODING), str)
+)
 atomic_types.register(bytes, classes.Atomic(_lib.GreedyBytes, bytes))
 atomic_types.register(bytearray, classes.Atomic(_lib.GreedyBytes, bytearray))
 
@@ -202,10 +213,10 @@ VALID_ENDIANNESSES = {
 
 
 def integer(
-        size: int | Callable = 4,
-        signed: bool = True,
-        bitwise: bool = False,
-        endianness: Literal['l', 'little', 'big', 'b', 'native', 'n'] = 'n'
+    size: int | Callable = 4,
+    signed: bool = True,
+    bitwise: bool = False,
+    endianness: Literal['l', 'little', 'big', 'b', 'native', 'n'] = 'n',
 ):
     endianness = VALID_ENDIANNESSES[endianness.lower()]
     cs = (_lib.BytesInteger, _lib.BitsInteger)[bitwise]
@@ -214,71 +225,85 @@ def integer(
 
 class Adapter(classes.Subconstance):
     """Port to construct.Adapter"""
+
     _impl = _lib.Adapter  # (subcon)
 
 
 class Aligned(classes.Subconstance):
     """Port to construct.Aligned"""
+
     _impl = _lib.Aligned  # (modulus, subcon, pattern=b'\x00')
 
 
 class BitsInteger(classes.Constance):
     """Port to construct.BitsInteger"""
+
     _impl = _lib.BitsInteger  # (length, signed=False, swapped=False)
 
 
 class Bytes(classes.Constance):
     """Port to construct.Bytes"""
+
     _impl = _lib.Bytes  # (length)
 
 
 class BytesInteger(classes.Constance):
     """Port to construct.BytesInteger"""
+
     _impl = _lib.BytesInteger  # (length, signed=False, swapped=False)
 
 
 class Check(classes.Constance):
     """Port to construct.Check"""
+
     _impl = _lib.Check  # (func)
 
 
 class Checksum(classes.Constance):
     """Port to construct.Checksum"""
+
     _impl = _lib.Checksum  # (checksumfield, hashfunc, bytesfunc)
 
 
 class Compiled(classes.Constance):
     """Port to construct.Compiled"""
+
     _impl = _lib.Compiled  # (parsefunc, buildfunc)
 
 
 class Compressed(classes.Subconstance):
     """Port to construct.Compressed"""
+
     _impl = _lib.Compressed  # (subcon, encoding, level=None)
 
 
 class CompressedLZ4(classes.Subconstance):
     """Port to construct.CompressedLZ4"""
+
     _impl = _lib.CompressedLZ4  # (subcon)
 
 
 class Computed(classes.Constance):
     """Port to construct.Computed"""
+
     _impl = _lib.Computed  # (func)
 
 
 class Const(classes.Subconstance):
     """Port to construct.Const"""
+
     _impl = _lib.Const  # (value, subcon=None)
 
 
 class Debugger(classes.Subconstance):
     """Port to construct.Debugger"""
+
     _impl = _lib.Debugger  # (subcon)
 
 
 class Default(classes.Subconstance):
     """Port to construct.Default"""
+
     _impl = _lib.Default  # (subcon, value)
 
     @classmethod
@@ -291,182 +316,220 @@ class Default(classes.Subconstance):
 
 class Enum(classes.Subconstance):
     """Port to construct.Enum"""
+
     _impl = _lib.Enum  # (subcon, *merge, **mapping)
 
 
 class ExprAdapter(classes.Subconstance):
     """Port to construct.ExprAdapter"""
+
     _impl = _lib.ExprAdapter  # (subcon, decoder, encoder)
 
 
 class ExprSymmetricAdapter(classes.Subconstance):
     """Port to construct.ExprSymmetricAdapter"""
+
     _impl = _lib.ExprSymmetricAdapter  # (subcon, encoder)
 
 
 class ExprValidator(classes.Subconstance):
     """Port to construct.ExprValidator"""
+
     _impl = _lib.ExprValidator  # (subcon, validator)
 
 
 class FixedSized(classes.Subconstance):
     """Port to construct.FixedSized"""
+
     _impl = _lib.FixedSized  # (length, subcon)
 
 
 class FlagsEnum(classes.Subconstance):
     """Port to construct.FlagsEnum"""
+
     _impl = _lib.FlagsEnum  # (subcon, *merge, **flags)
 
 
 class FocusedSeq(classes.Constance):
     """Port to construct.FocusedSeq"""
+
     _impl = _lib.FocusedSeq  # (parsebuildfrom, *subcons, **subconskw)
 
 
 class FormatField(classes.Constance):
     """Port to construct.FormatField"""
+
     _impl = _lib.FormatField  # (endianity, format)
 
 
 class GreedyRange(classes.Subconstance):
     """Port to construct.GreedyRange"""
+
     _impl = _lib.GreedyRange  # (subcon, discard=False)
 
 
 class Hex(classes.Subconstance):
     """Port to construct.Hex"""
+
     _impl = _lib.Hex  # (subcon)
 
 
 class HexDump(classes.Subconstance):
     """Port to construct.HexDump"""
+
     _impl = _lib.HexDump  # (subcon)
 
 
 class IfThenElse(classes.Constance):
     """Port to construct.IfThenElse"""
+
     _impl = _lib.IfThenElse  # (condfunc, thensubcon, elsesubcon)
 
 
 class Indexing(classes.Subconstance):
     """Port to construct.Indexing"""
+
     _impl = _lib.Indexing  # (subcon, count, index, empty=None)
 
 
 class Lazy(classes.Subconstance):
     """Port to construct.Lazy"""
+
     _impl = _lib.Lazy  # (subcon)
 
 
 class LazyArray(classes.ArrayLike):
     """Port to construct.LazyArray"""
+
     _impl = _lib.LazyArray  # (count, subcon)
 
 
 class LazyBound(classes.Constance):
     """Port to construct.LazyBound"""
+
     _impl = _lib.LazyBound  # (subconfunc)
 
     @staticmethod
     def map_arguments(arguments):
-        arguments.update(subcon=lambda: util.ensure_construct(arguments['subconfunc']()))
+        arguments.update(
+            subcon=lambda: util.ensure_construct(arguments['subconfunc']())
+        )
         return arguments
 
 
 class LazyStruct(classes.Data):
     """Port to construct.LazyStruct"""
+
     _impl = _lib.LazyStruct  # (*subcons, **subconskw)
 
 
 class Mapping(classes.Subconstance):
     """Port to construct.Mapping"""
+
     _impl = _lib.Mapping  # (subcon, mapping)
 
 
 class NamedTuple(classes.Subconstance):
     """Port to construct.NamedTuple"""
+
     _impl = _lib.NamedTuple  # (tuplename, tuplefields, subcon)
 
 
 class NullStripped(classes.Subconstance):
     """Port to construct.NullStripped"""
+
     _impl = _lib.NullStripped  # (subcon, pad=b'\x00')
 
 
 class NullTerminated(classes.Subconstance):
     """Port to construct.NullTerminated"""
+
     # (subcon, term=b'\x00', include=False, consume=True, require=True)
     _impl = _lib.NullTerminated
 
 
 class Padded(classes.Subconstance):
     """Port to construct.Padded"""
+
     _impl = _lib.Padded  # (length, subcon, pattern=b'\x00')
 
 
 class Peek(classes.Subconstance):
     """Port to construct.Peek"""
+
     _impl = _lib.Peek  # (subcon)
 
 
 class Pointer(classes.Subconstance):
     """Port to construct.Pointer"""
+
     _impl = _lib.Pointer  # (offset, subcon, stream=None)
 
 
 class Prefixed(classes.Subconstance):
     """Port to construct.Prefixed"""
+
     _impl = _lib.Prefixed  # (lengthfield, subcon, includelength=False)
 
     @staticmethod
     def map_arguments(arguments):
-        arguments.update(lengthfield=util.ensure_construct(arguments.get('lengthfield')))
+        arguments.update(
+            lengthfield=util.ensure_construct(arguments.get('lengthfield'))
+        )
         return arguments
 
 
 class Probe(classes.Constance):
     """Port to construct.Probe"""
+
     _impl = _lib.Probe  # (into=None, lookahead=None)
 
 
 class ProcessRotateLeft(classes.Subconstance):
     """Port to construct.ProcessRotateLeft"""
+
     _impl = _lib.ProcessRotateLeft  # (amount, group, subcon)
 
 
 class ProcessXor(classes.Subconstance):
     """Port to construct.ProcessXor"""
+
     _impl = _lib.ProcessXor  # (padfunc, subcon)
 
 
 class RawCopy(classes.Subconstance):
     """Port to construct.RawCopy"""
+
     _impl = _lib.RawCopy  # (subcon)
 
 
 class Rebuffered(classes.Subconstance):
     """Port to construct.Rebuffered"""
+
     _impl = _lib.Rebuffered  # (subcon, tailcutoff=None)
 
 
 class Rebuild(classes.Subconstance):
     """Port to construct.Rebuild"""
+
     _impl = _lib.Rebuild  # (subcon, func)
 
 
 class Renamed(classes.Subconstance):
     """Port to construct.Renamed"""
+
     _impl = _lib.Renamed  # (subcon, newname=None, newdocs=None, newparsed=None)
 
 
 class RepeatUntil(classes.Subconstance):
     """Port to construct.RepeatUntil"""
+
     _impl = _lib.RepeatUntil  # (predicate, subcon, discard=False)
 
 
 class RestreamData(classes.Subconstance):
     """Port to construct.RestreamData"""
+
     _impl = _lib.RestreamData  # (datafunc, subcon)
 
     @staticmethod
@@ -477,16 +540,21 @@ class RestreamData(classes.Subconstance):
 
 class Restreamed(classes.Subconstance):
     """Port to construct.Restreamed"""
-    _impl = _lib.Restreamed  # (subcon, decoder, decoderunit, encoder, encoderunit, sizecomputer)
+
+    _impl = (
+        _lib.Restreamed
+    )  # (subcon, decoder, decoderunit, encoder, encoderunit, sizecomputer)
 
 
 class Seek(classes.Constance):
     """Port to construct.Seek"""
+
     _impl = _lib.Seek  # (at, whence=0)
 
 
 class Select(classes.FieldListData):
     """Port to construct.Select"""
+
     _impl = _lib.Select  # (*subcons, **subconskw)
     _dataclass_params = {'init': False, 'repr': False}
 
@@ -495,13 +563,17 @@ class Select(classes.FieldListData):
     def __init__(self, container, context, **kwds):
         data_missing = object()
         data = data_missing
-        constances = [util.ensure_constance_of_field(f) for f in self.fields._get_fields()]
+        constances = [
+            util.ensure_constance_of_field(f) for f in self.fields._get_fields()
+        ]
         if isinstance(container, (*(cs for cs in constances if isinstance(cs, type)),)):
             data = container
         else:
             for constance in constances:
                 try:
-                    data = util.initialize_constance(constance, container, context, **kwds)
+                    data = util.initialize_constance(
+                        constance, container, context, **kwds
+                    )
                 except TypeError:
                     continue
                 else:
@@ -527,55 +599,68 @@ class Select(classes.FieldListData):
 
 class Sequence(classes.FieldListData):
     """Port to construct.Sequence"""
+
     _impl = _lib.Sequence  # (*subcons, **subconskw)
     fields = None
 
 
 class Slicing(classes.Subconstance):
     """Port to construct.Slicing"""
+
     _impl = _lib.Slicing  # (subcon, count, start, stop, step=1, empty=None)
 
 
 class StopIf(classes.Constance):
     """Port to construct.StopIf"""
+
     _impl = _lib.StopIf  # (condfunc)
 
 
 class StringEncoded(classes.Subconstance):
     """Port to construct.StringEncoded"""
+
     _impl = _lib.StringEncoded  # (subcon, encoding)
 
 
 class Struct(classes.Data):
     """Port to construct.Struct"""
+
     _impl = _lib.Struct  # (*subcons, **subconskw)
 
 
 class SymmetricAdapter(classes.Subconstance):
     """Port to construct.SymmetricAdapter"""
+
     _impl = _lib.SymmetricAdapter  # (subcon)
 
 
 class TimestampAdapter(classes.Subconstance):
     """Port to construct.TimestampAdapter"""
+
     _impl = _lib.TimestampAdapter  # (subcon)
 
 
 class Transformed(classes.Subconstance):
     """Port to construct.Transformed"""
-    _impl = _lib.Transformed  # (subcon, decodefunc, decodeamount, encodefunc, encodeamount)
+
+    _impl = (
+        _lib.Transformed
+    )  # (subcon, decodefunc, decodeamount, encodefunc, encodeamount)
 
 
 class Tunnel(classes.Subconstance):
     """Port to construct.Tunnel"""
+
     _impl = _lib.Tunnel  # (subcon)
 
 
 class Union(classes.Data):
     """Port to construct.Union"""
+
     _impl = _lib.Union  # (parsefrom, *subcons, **subconskw)
 
 
 class Validator(classes.Subconstance):
     """Port to construct.Validator"""
+
     _impl = _lib.Validator  # (subcon)

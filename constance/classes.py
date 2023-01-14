@@ -16,20 +16,16 @@ from constance import util
 
 __all__ = (
     'Constance',
-
     'Atomic',
     'Composite',
     'Subconstruct',
-
     'Data',
     'FieldListData',
     'Subconstance',
     'subconstance',
-
     'Array',
     'ArrayLike',
     'Switch',
-
     'field',
 )
 
@@ -66,7 +62,11 @@ class Atomic(Constance):
 
     @property
     def type_name(self):
-        return self._python_type.__name__ if self._python_type else type(self._construct).__name__
+        return (
+            self._python_type.__name__
+            if self._python_type
+            else type(self._construct).__name__
+        )
 
     def construct(self):
         return self._construct
@@ -92,7 +92,11 @@ class Atomic(Constance):
         except Exception as exc:
             err = TypeError(
                 f'cannot cast {obj} to the desired type'
-                + (' ' + self._python_type.__name__.join('()') if self._python_type else '')
+                + (
+                    ' ' + self._python_type.__name__.join('()')
+                    if self._python_type
+                    else ''
+                )
             )
             cause = None
             if self._cast:
@@ -111,12 +115,12 @@ class SubconstructArgumentManager:
     kwargs = None
 
     def __init__(
-            self,
-            factory,
-            name,
-            args,
-            kwargs,
-            mapper=None,
+        self,
+        factory,
+        name,
+        args,
+        kwargs,
+        mapper=None,
     ):
         self.name = name
         self.factory = factory
@@ -148,13 +152,15 @@ class Subconstruct(Constance):
     _argument_manager_cls = SubconstructArgumentManager
 
     def __init__(
-            self,
-            name=None, /, *,
-            factory,
-            args=(),
-            kwargs=None,
-            python_type=None,
-            mapper=None,
+        self,
+        name=None,
+        /,
+        *,
+        factory,
+        args=(),
+        kwargs=None,
+        python_type=None,
+        mapper=None,
     ):
         self._name = name or (
             factory.__name__ if isinstance(factory, type) else type(factory).__name__
@@ -185,7 +191,9 @@ class Composite(Constance):
 
     @classmethod
     def _extraction_operator(cls, args):
-        raise ValueError(f'{cls.__name__}[{", ".join(map(str, args)) or ()}] is undefined')
+        raise ValueError(
+            f'{cls.__name__}[{", ".join(map(str, args)) or ()}] is undefined'
+        )
 
 
 class LazyDataProxy:
@@ -253,18 +261,16 @@ class Data(Composite):
             if context is None:
                 context = _lib.Container(self._data_for_building())
             context['_'] = self._context
-            value = util.initialize_constance(
-                constance, getattr(self, f.name), context
-            )
+            value = util.initialize_constance(constance, getattr(self, f.name), context)
             object.__setattr__(self, f.name, value)
 
     def __init_subclass__(
-            cls,
-            stack_level=1,
-            env=None,
-            extends=MISSING_EXTENDS,
-            terminated=None,
-            compiled=None,
+        cls,
+        stack_level=1,
+        env=None,
+        extends=MISSING_EXTENDS,
+        terminated=None,
+        compiled=None,
     ):
         data_fs = []
         setattr(cls, _constants.FIELDS, data_fs)
@@ -276,7 +282,7 @@ class Data(Composite):
         dataclasses.dataclass(cls, **(cls._dataclass_params or {}))
 
         cls._configure_annotations(extends)
-        cls._setup_field_environment(stack_level+1, env or {})
+        cls._setup_field_environment(stack_level + 1, env or {})
 
         type_hints = typing.get_type_hints(cls, cls._field_environment)
 
@@ -303,11 +309,11 @@ class Data(Composite):
 
             cls._field_names = [
                 *(getattr(extends, '_field_names', None) or [] if extends else []),
-                *cls._field_names
+                *cls._field_names,
             ]
             cls._skip_fields = [
                 *(getattr(extends, '_skip_fields', None) or [] if extends else []),
-                *(cls._skip_fields or [])
+                *(cls._skip_fields or []),
             ]
 
             for field_name in set(cls._field_names).difference(cls._skip_fields):
@@ -344,7 +350,7 @@ class Data(Composite):
             default_context = {}
         cls._default_context = {
             **(getattr(extends, '_default_context', None) or {}),
-            **default_context
+            **default_context,
         }
 
     def _set_defaults(self, **context):
@@ -360,7 +366,7 @@ class Data(Composite):
     @classmethod
     def _extraction_operator(cls, item):
         if len(item) == 1:
-            count, = item
+            (count,) = item
             return Array.of(cls, count=count)
         return super()._extraction_operator(item)
 
@@ -469,7 +475,7 @@ class FieldHolder(list):
 
     def append(self, f):
         super().append(f)
-        self._process_field(f, len(self)-1)
+        self._process_field(f, len(self) - 1)
 
     def remove(self, f):
         super().remove(f)
@@ -499,12 +505,12 @@ class FieldListData(Data):
     field_holder_cls = FieldHolder
 
     def __init_subclass__(
-            cls,
-            stack_level=1,
-            env=None,
-            extends=MISSING_EXTENDS,
-            terminated=None,
-            compiled=None
+        cls,
+        stack_level=1,
+        env=None,
+        extends=MISSING_EXTENDS,
+        terminated=None,
+        compiled=None,
     ):
         if extends is MISSING_EXTENDS:
             extends = cls.__base__
@@ -515,10 +521,11 @@ class FieldListData(Data):
         cls.__annotations__ = fs._emulate_annotations()
         try:
             super().__init_subclass__(
-                stack_level=stack_level+1,
-                env=env, extends=extends,
+                stack_level=stack_level + 1,
+                env=env,
+                extends=extends,
                 terminated=terminated,
-                compiled=compiled
+                compiled=compiled,
             )
         finally:
             cls.__annotations__ = orig_annotations
@@ -554,10 +561,7 @@ class FieldListData(Data):
     @classmethod
     def construct(cls):
         fs = (
-            util.get_field_construct(
-                util.ensure_constance_of_field(f),
-                name=f.name
-            )
+            util.get_field_construct(util.ensure_constance_of_field(f), name=f.name)
             for f in cls.fields._fields_by_name.values()
         )
         return cls._impl(*fs)
@@ -588,7 +592,9 @@ class Subconstance(Composite):
 
     @classmethod
     def construct(cls):
-        raise TypeError(f'{cls.__name__} can only be used with .of() or []: {cls.__name__}[...]')
+        raise TypeError(
+            f'{cls.__name__} can only be used with .of() or []: {cls.__name__}[...]'
+        )
 
     @classmethod
     def subconstruct(cls, mapper, /, *args, **kwargs):
@@ -608,7 +614,11 @@ class Subconstance(Composite):
     @classmethod
     def init(cls, constance_cls, instance, *args, **kwargs):
         instance.__bound__ = bound = constance_cls(*args, **kwargs)
-        return bound if isinstance(constance_cls, Atomic) else bound.traverse_data_for_building()
+        return (
+            bound
+            if isinstance(constance_cls, Atomic)
+            else bound.traverse_data_for_building()
+        )
 
     @classmethod
     def load(cls, subconstance_cls, constance_cls, args, **kwargs):
@@ -616,9 +626,8 @@ class Subconstance(Composite):
 
     @classmethod
     def repr(cls, constance_cls, bound_subconstance, s_args, s_kwargs, instance=None):
-        return (
-            bound_subconstance.type_name
-            + (f'({instance.__bound__})' if instance is not None else '')
+        return bound_subconstance.type_name + (
+            f'({instance.__bound__})' if instance is not None else ''
         )
 
     @staticmethod
@@ -638,7 +647,8 @@ class ArrayLike(Subconstance):
     def init(constance_cls, instance, *inits):
         instance.__bound__ = [
             (
-                init if (isinstance(constance_cls, type) and isinstance(init, constance_cls))
+                init
+                if (isinstance(constance_cls, type) and isinstance(init, constance_cls))
                 else util.initialize_constance(constance_cls, init)
             )
             for init in inits
@@ -649,16 +659,21 @@ class ArrayLike(Subconstance):
 
     @staticmethod
     def load(subconstance_cls, constance_cls, args, **kwargs):
-        return subconstance_cls(*(
-            util.initialize_constance(constance_cls, sub_args, subconstance_cls, **kwargs)
-            for sub_args in args
-        ))
+        return subconstance_cls(
+            *(
+                util.initialize_constance(
+                    constance_cls, sub_args, subconstance_cls, **kwargs
+                )
+                for sub_args in args
+            )
+        )
 
     @classmethod
     def repr(cls, constance_cls, bound_subconstance, s_args, s_kwargs, instance=None):
         return super().repr(constance_cls, bound_subconstance, s_args, s_kwargs) + (
             ', '.join(map(repr, instance.__bound__)).join('()')
-            if instance is not None else ''
+            if instance is not None
+            else ''
         )
 
     @staticmethod
@@ -674,7 +689,9 @@ class Array(ArrayLike):
         return cls.subconstruct(MISSING_MAPPER, *args)
 
 
-def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, **s_kwargs):
+def subconstance(
+    constance_cls, subconstance_cls: type[Subconstance], *s_args, **s_kwargs
+):
     class SubconstanceMeta(type):
         _type_name = None
 
@@ -683,13 +700,16 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
             if not self._type_name:
                 self._type_name = subconstance_cls.__name__
                 type_name = getattr(constance_cls, 'type_name', constance_cls.__name__)
-                fmt = filter(None, (
-                    type_name,
-                    ', '.join(map(repr, s_args)),
-                    ', '.join(
-                        f'{key!s}={value!r}'
-                        for key, value in s_kwargs.items())
-                ))
+                fmt = filter(
+                    None,
+                    (
+                        type_name,
+                        ', '.join(map(repr, s_args)),
+                        ', '.join(
+                            f'{key!s}={value!r}' for key, value in s_kwargs.items()
+                        ),
+                    ),
+                )
                 self._type_name += ', '.join(fmt).join('<>')
             return self._type_name if self == BoundSubconstance else self.__name__
 
@@ -731,7 +751,7 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
                 bound_subconstance=type(self),
                 instance=self,
                 s_args=s_args,
-                s_kwargs=s_kwargs
+                s_kwargs=s_kwargs,
             )
 
     return BoundSubconstance
@@ -753,17 +773,14 @@ class ConstructCaseDict(dict):
 
 class Switch(Constance):
     """Port to construct.Switch"""
+
     _impl = _lib.Switch  # (keyfunc, cases, default=None)
     _lazy_load = LazyDataProxy
     cases = None
 
     @classmethod
     def construct(cls):
-        return cls._impl(
-            cls.key,
-            ConstructCaseDict(cls.cases),
-            cls.default()
-        )
+        return cls._impl(cls.key, ConstructCaseDict(cls.cases), cls.default())
 
     @classmethod
     def default(cls):
@@ -792,11 +809,11 @@ class Switch(Constance):
     @classmethod
     def _register_overload(cls, key, constance_cls):
         from constance.core import Select
+
         overload_case = cls.cases[key]
         if not (isinstance(overload_case, type) and issubclass(overload_case, Select)):
             overload_case = Select.from_fields(
-                [overload_case],
-                name=f'Select_{cls.__name__}_overloads_{key}'
+                [overload_case], name=f'Select_{cls.__name__}_overloads_{key}'
             )
             cls.cases[key] = overload_case
         if constance_cls in overload_case.fields:
@@ -810,7 +827,9 @@ class Switch(Constance):
 
     @classmethod
     def _eager_load(cls, container, context=None, /, **kwargs):
-        return util.initialize_constance(cls.cases[cls.key(context)], container, **kwargs)
+        return util.initialize_constance(
+            cls.cases[cls.key(context)], container, **kwargs
+        )
 
     def __init_subclass__(cls, stack_level=1, extends=MISSING_EXTENDS):
         if extends is MISSING_EXTENDS:
@@ -836,13 +855,11 @@ class Generic:
 
         if count is None:
             return Atomic(
-                _lib.GreedyRange(constance.construct()),
-                python_type=self._python_type
+                _lib.GreedyRange(constance.construct()), python_type=self._python_type
             )
 
         return Atomic(
-            _lib.Array(count, constance.construct()),
-            python_type=self._python_type
+            _lib.Array(count, constance.construct()), python_type=self._python_type
         )
 
 

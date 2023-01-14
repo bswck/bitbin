@@ -24,6 +24,7 @@ assert my_vector == loaded_vector
 
 # Example 2
 
+
 class Circle(Struct):
     center: Point2D
     radius: double

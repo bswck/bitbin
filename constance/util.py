@@ -21,19 +21,15 @@ def make_constance(python_type, qualname=None):
 
     if python_type is None:
         raise ValueError(
-            'constance class cannot be None'
-            + (' in ' + qualname if qualname else '')
+            'constance class cannot be None' + (' in ' + qualname if qualname else '')
         )
 
     tp = typing.get_origin(python_type)
     args = list(typing.get_args(python_type))
-    if (
-        isinstance(python_type, (classes.Atomic, classes.Subconstruct))
-        or (
-            isinstance(python_type, type)
-            # and not args
-            and issubclass(python_type, classes.Constance)
-        )
+    if isinstance(python_type, (classes.Atomic, classes.Subconstruct)) or (
+        isinstance(python_type, type)
+        # and not args
+        and issubclass(python_type, classes.Constance)
     ):
         return python_type
 
@@ -60,7 +56,9 @@ def make_constance(python_type, qualname=None):
     atomic = atomic_types.dispatch(python_type)
     if atomic:
         return atomic
-    raise TypeError(f'cannot use ambiguous non-factory type {python_type} as a data field')
+    raise TypeError(
+        f'cannot use ambiguous non-factory type {python_type} as a data field'
+    )
 
 
 generic_types = functools.singledispatch(None)
@@ -130,6 +128,7 @@ def find_type_annotation(obj):
 
 def initialize_constance(constance, initializer, context=None, /, **kwargs):
     from constance.classes import Atomic
+
     if hasattr(constance, '_load'):
         return constance._load(initializer, context, **kwargs)
     if isinstance(constance, Atomic):
@@ -151,14 +150,18 @@ def traverse_data_for_building(obj, recursive=True, dict_factory=dict):
             result.append((f.name, value))
         return dict_factory(result)
     if isinstance(obj, tuple) and hasattr(obj, '_fields'):
-        return type(obj)(*(traverse_data_for_building(value, dict_factory) for value in obj))
+        return type(obj)(
+            *(traverse_data_for_building(value, dict_factory) for value in obj)
+        )
     if isinstance(obj, (list, tuple)):
-        return type(obj)(traverse_data_for_building(value, dict_factory) for value in obj)
+        return type(obj)(
+            traverse_data_for_building(value, dict_factory) for value in obj
+        )
     if isinstance(obj, dict):
         return type(obj)(
             (
                 traverse_data_for_building(key, dict_factory),
-                traverse_data_for_building(value, dict_factory)
+                traverse_data_for_building(value, dict_factory),
             )
             for key, value in obj.items()
         )
