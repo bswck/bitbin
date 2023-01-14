@@ -454,6 +454,9 @@ class FieldHolder(list):
         super().remove(f)
         del self._annotations[f.name], self._fields_by_name[f.name]
 
+    def _get_fields(self):
+        return list(self._fields_by_name.values())
+
     @staticmethod
     def _autocreate_field_name(_f, i):
         return f'field_{i}'

@@ -496,15 +496,11 @@ class Select(classes.FieldListData):
     def __init__(self, container, context, **kwds):
         data_missing = object()
         data = data_missing
-        fs = self.fields._fields_by_name.values()
-        if isinstance(
-            container,
-            (*(cs for cs in map(util.ensure_constance_of_field, fs) if isinstance(cs, type)),)
-        ):
+        constances = [util.ensure_constance_of_field(f) for f in self.fields._get_fields()]
+        if isinstance(container, (*(cs for cs in constances if isinstance(cs, type)),)):
             data = container
         else:
-            for f in fs:
-                constance = f.metadata['constance']
+            for constance in constances:
                 try:
                     data = util.initialize_constance(constance, container, context, **kwds)
                 except TypeError:
