@@ -45,5 +45,3 @@ lazy_circles = LazyCircles([(1, 2), 2])
 print(pkt := lazy_circles.build())
 
 print(LazyCircles.load(pkt))
-
-

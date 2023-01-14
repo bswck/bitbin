@@ -236,6 +236,8 @@ class Data(Composite):
     _private_entries = None  # type: _DataPrivateEntries | None
     _container = None  # type: _lib.Container[str, typing.Any] | None
     _field_names = []  # type: typing.ClassVar[list[str]]
+    _terminated = False  # type: typing.ClassVar[bool]
+    _compiled = False  # type: typing.ClassVar[bool]
     _lazy_load = LazyDataProxy
     _context = _lib.Container()
 
@@ -256,7 +258,14 @@ class Data(Composite):
             )
             object.__setattr__(self, f.name, value)
 
-    def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
+    def __init_subclass__(
+            cls,
+            stack_level=1,
+            env=None,
+            extends=MISSING_EXTENDS,
+            terminated=None,
+            compiled=None,
+    ):
         data_fs = []
         setattr(cls, _constants.FIELDS, data_fs)
 
@@ -280,7 +289,13 @@ class Data(Composite):
             f.metadata = dict(**f.metadata, constance=constance)
             data_fs.append(f)
 
-        cls._setup_default_context()
+        cls._setup_default_context(extends)
+
+        if terminated is not None:
+            cls._terminated = terminated
+
+        if compiled is not None:
+            cls._compiled = compiled
 
     @classmethod
     def _configure_annotations(cls, extends=None):
@@ -332,7 +347,7 @@ class Data(Composite):
             **default_context
         }
 
-    def set_defaults(self, **context):
+    def _set_defaults(self, **context):
         self._default_context.update(context)
 
     def _data_for_building(self):
@@ -365,7 +380,13 @@ class Data(Composite):
             util.get_field_construct(util.ensure_constance_of_field(f), name=f.name)
             for f in getattr(cls, _constants.FIELDS)
         )
-        return cls._impl(*fs)
+        if cls._terminated:
+            impl = cls._impl(*fs, _lib.Terminated)
+        else:
+            impl = cls._impl(*fs)
+        if cls._compiled:
+            impl = impl.compile()
+        return impl
 
     @classmethod
     def load(cls, data, **kwargs):
@@ -477,7 +498,14 @@ class FieldListData(Data):
     fields = None
     field_holder_cls = FieldHolder
 
-    def __init_subclass__(cls, stack_level=1, env=None, extends=MISSING_EXTENDS):
+    def __init_subclass__(
+            cls,
+            stack_level=1,
+            env=None,
+            extends=MISSING_EXTENDS,
+            terminated=None,
+            compiled=None
+    ):
         if extends is MISSING_EXTENDS:
             extends = cls.__base__
         orig_annotations = cls.__annotations__
@@ -486,7 +514,12 @@ class FieldListData(Data):
 
         cls.__annotations__ = fs._emulate_annotations()
         try:
-            super().__init_subclass__(stack_level+1, env)
+            super().__init_subclass__(
+                stack_level=stack_level+1,
+                env=env, extends=extends,
+                terminated=terminated,
+                compiled=compiled
+            )
         finally:
             cls.__annotations__ = orig_annotations
 
@@ -707,6 +740,9 @@ def subconstance(constance_cls, subconstance_cls: type[Subconstance], *s_args, *
 class ConstructCaseDict(dict):
     def values(self):
         yield from map(util.ensure_construct, super().values())
+
+    def items(self):
+        return zip(self.keys(), self.values())
 
     def __getitem__(self, item):
         return util.ensure_construct(super().__getitem__(item))

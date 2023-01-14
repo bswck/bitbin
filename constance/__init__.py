@@ -6,10 +6,13 @@ from constance.util import *
 
 from constance import classes, core, util
 
+from construct import this
+
 __all__ = (
     'classes',
     'core',
     'util',
+    'this',
 
     *classes.__all__,
     *core.__all__,

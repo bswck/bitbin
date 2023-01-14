@@ -116,7 +116,6 @@ __all__ = (
     'Validator',
 )
 
-
 def _char_cast(obj):
     if isinstance(obj, str):
         return ord(obj)
