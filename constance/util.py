@@ -45,7 +45,7 @@ def make_constance(python_type, qualname=None):
             count = None
         factories = list(map(make_constance, args))
         if issubclass(tp, types.UnionType):
-            return classes.Atomic(_lib.Select(*factories[::-1]))
+            return classes.Atomic(_lib.Select(*reversed(factories)))
         tp = generic_types.dispatch(tp) or tp
         if isinstance(tp, type) and issubclass(tp, classes.Constance):
             return tp
