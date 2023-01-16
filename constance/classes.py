@@ -863,10 +863,16 @@ class Generic:
         )
 
 
+# def sanitize_field_name(constance, name):
+#     return f'f_{name}'
+
+
 def field(name, constance, **kwargs) -> dataclasses.Field:
     metadata = kwargs.setdefault('metadata', {})
     metadata.update(constance=constance)
+    # metadata.update(orig_name=name)
     f = dataclasses.field(**kwargs)
     f.name = name
+    # f.name = sanitize_field_name(name)
     f.metadata = dict(f.metadata)
     return f
