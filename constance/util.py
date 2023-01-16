@@ -16,6 +16,49 @@ __all__ = (
 )
 
 
+def _make_constance_literal(args):
+    from constance import classes
+
+    return classes.Atomic(
+        (_lib.OneOf, _lib.Const)[len(args) < 2](*map(
+            lambda arg: make_constance(type(arg)).construct().build(arg),
+            args
+        )), python_type=tuple(map(type, args))
+    )
+
+
+def _make_constance_union(tp, factories):
+    from constance import classes
+
+    if issubclass(tp, types.UnionType):
+        return classes.Atomic(_lib.Select(*map(ensure_construct, reversed(factories))))
+
+
+def _make_constance_generic(tp, args):
+    from constance import classes
+
+    nparams = _TypingLib.get_nparams(tp)
+
+    if nparams == -1:
+        count = len(args)
+        if ... in args:
+            args.remove(...)
+            count = None
+    else:
+        count = None
+    if tp is typing.Literal:
+        return _make_constance_literal(args)
+    factories = list(map(make_constance, args))
+    if isinstance(tp, types.UnionType):
+        return _make_constance_union(tp, factories)
+    tp = generic_types.dispatch(tp) or tp
+    if isinstance(tp, type) and issubclass(tp, classes.Constance):
+        return tp
+    if not isinstance(tp, type):
+        return tp(factories, count=count)
+    raise TypeError(f'{tp.__name__} type as a data field type is not supported')
+
+
 def make_constance(python_type, qualname=None):
     from constance import classes
 
@@ -26,6 +69,7 @@ def make_constance(python_type, qualname=None):
 
     tp = typing.get_origin(python_type)
     args = list(typing.get_args(python_type))
+
     if isinstance(python_type, (classes.Atomic, classes.Subconstruct)) or (
         isinstance(python_type, type)
         # and not args
@@ -34,28 +78,12 @@ def make_constance(python_type, qualname=None):
         return python_type
 
     if tp and args:
-        nparams = _TypingLib.get_nparams(tp)
-
-        if nparams == -1:
-            count = len(args)
-            if ... in args:
-                args.remove(...)
-                count = None
-        else:
-            count = None
-        factories = list(map(make_constance, args))
-        if issubclass(tp, types.UnionType):
-            return classes.Atomic(_lib.Select(*reversed(factories)))
-        tp = generic_types.dispatch(tp) or tp
-        if isinstance(tp, type) and issubclass(tp, classes.Constance):
-            return tp
-        if not isinstance(tp, type):
-            return tp(factories, count=count)
-        raise TypeError(f'{tp.__name__} type as a data field type is not supported')
+        return _make_constance_generic(tp, args)
 
     atomic = atomic_types.dispatch(python_type)
     if atomic:
         return atomic
+
     raise TypeError(
         f'cannot use ambiguous non-factory type {python_type} as a data field'
     )

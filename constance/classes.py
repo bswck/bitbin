@@ -91,7 +91,7 @@ class Atomic(Constance):
             return self._cast(obj)
         except Exception as exc:
             err = TypeError(
-                f'cannot cast {obj} to the desired type'
+                f'cannot cast {obj!r} to the desired type'
                 + (
                     ' ' + self._python_type.__name__.join('()')
                     if self._python_type
