@@ -127,12 +127,8 @@ def find_type_annotation(obj):
 
 
 def initialize_constance(constance, initializer, context=None, /, **kwargs):
-    from constance.classes import Atomic
-
     if hasattr(constance, '_load'):
         return constance._load(initializer, context, **kwargs)
-    if isinstance(constance, Atomic):
-        return constance(initializer, context, **kwargs)
     if not isinstance(initializer, collections.abc.Iterable):
         raise TypeError(
             f'cannot instantiate class {constance.__name__} with {initializer}'
