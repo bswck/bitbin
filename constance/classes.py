@@ -258,7 +258,7 @@ class Data(Composite):
 
         for f in fs:
             constance = util.ensure_constance_of_field(f)
-            if context is None:
+            if not context:
                 context = _lib.Container(self._data_for_building())
             context['_'] = self._context
             value = util.initialize_constance(constance, getattr(self, f.name), context)
