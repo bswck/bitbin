@@ -161,31 +161,31 @@ def initialize_constance(constance, initializer, context=None, /, **kwargs):
         raise TypeError(
             f'cannot instantiate class {constance.__name__} with {initializer}'
         )
-    return constance(*initializer, context, **kwargs)
+    return constance(*initializer, **kwargs)
 
 
-def traverse_data_for_building(obj, recursive=True, dict_factory=dict):
-    if recursive and hasattr(obj, '_data_for_building'):
-        return obj._data_for_building()
+def traverse_data(obj, recursive=True, dict_factory=dict):
+    if recursive and callable(getattr(obj, '_data', None)):
+        return obj._data()
     if dataclasses.is_dataclass(obj):
         result = []
         for f in dataclasses.fields(obj):
-            value = traverse_data_for_building(getattr(obj, f.name), dict_factory)
+            value = traverse_data(getattr(obj, f.name), dict_factory)
             result.append((f.name, value))
         return dict_factory(result)
     if isinstance(obj, tuple) and hasattr(obj, '_fields'):
         return type(obj)(
-            *(traverse_data_for_building(value, dict_factory) for value in obj)
+            *(traverse_data(value, dict_factory) for value in obj)
         )
     if isinstance(obj, (list, tuple)):
         return type(obj)(
-            traverse_data_for_building(value, dict_factory) for value in obj
+            traverse_data(value, dict_factory) for value in obj
         )
     if isinstance(obj, dict):
         return type(obj)(
             (
-                traverse_data_for_building(key, dict_factory),
-                traverse_data_for_building(value, dict_factory),
+                traverse_data(key, dict_factory),
+                traverse_data(value, dict_factory),
             )
             for key, value in obj.items()
         )

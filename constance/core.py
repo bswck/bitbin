@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import sys
 import typing
 
 import construct as _lib
 
 from constance import _constants
 from constance import classes
+from constance import config
 from constance import util
 
 if typing.TYPE_CHECKING:
@@ -96,6 +96,7 @@ __all__ = (
     'NullStripped',
     'NullTerminated',
     'Padded',
+    'Pass',
     'Peek',
     'Pointer',
     'Prefixed',
@@ -173,19 +174,38 @@ Float64l = classes.Atomic(_lib.Float64l, float)
 Float64b = classes.Atomic(_lib.Float64b, float)
 Float64n = classes.Atomic(_lib.Float64n, float)
 
-char = Int8sb
-unsigned_char = Int8ub
+Pass = classes.Atomic(_lib.Pass, standalone=True)
 
-short = Int16sb
-unsigned_short = Int16ub
+if config.GLOBAL_ENDIANNESS == config.Endianness.BIG:
+    char = Int8sb
+    unsigned_char = Int8ub
 
-long = Int32sb
-unsigned_long = Int32ub
+    short = Int16sb
+    unsigned_short = Int16ub
 
-long_long = Int64sb
-unsigned_long_long = Int64ub
+    long = Int32sb
+    unsigned_int = Int32ub
+    unsigned_long = Int32ub
 
-double = Float64b
+    long_long = Int64sb
+    unsigned_long_long = Int64ub
+
+    double = Float64b
+else:
+    char = Int8sl
+    unsigned_char = Int8ul
+
+    short = Int16sl
+    unsigned_short = Int16ul
+
+    long = Int32sl
+    unsigned_int = Int32ul
+    unsigned_long = Int32ul
+
+    long_long = Int64sl
+    unsigned_long_long = Int64ul
+
+    double = Float64l
 
 atomic_types, generic_types = util.atomic_types, util.generic_types
 
@@ -202,15 +222,6 @@ generic_types.register(set, classes.Generic(set))
 generic_types.register(frozenset, classes.Generic(frozenset))
 generic_types.register(tuple, classes.Generic(tuple))
 
-VALID_ENDIANNESSES = {
-    'l': 'l',
-    'little': 'l',
-    'big': 'b',
-    'b': 'b',
-    'native': (byte_order := sys.byteorder),
-    'n': byte_order,
-}
-
 
 def integer(
     size: int | Callable = 4,
@@ -218,7 +229,7 @@ def integer(
     bitwise: bool = False,
     endianness: Literal['l', 'little', 'big', 'b', 'native', 'n'] = 'n',
 ):
-    endianness = VALID_ENDIANNESSES[endianness.lower()]
+    endianness = config.VALID_ENDIANNESSES[endianness.lower()]
     cs = (_lib.BytesInteger, _lib.BitsInteger)[bitwise]
     return classes.Atomic(cs(size, signed=signed, swapped=endianness == 'l'), int)
 
@@ -586,8 +597,8 @@ class Select(classes.FieldListData):
                     )
         self._data = data
 
-    def _data_for_building(self):
-        return util.traverse_data_for_building(self._data)
+    def _data(self):
+        return util.traverse_data(self._data)
 
     @classmethod
     def _eager_load(cls, container, context=None, /, **custom_kwargs):
