@@ -303,10 +303,10 @@ class Data(Composite):
 
         for f in fs:
             init_fs.append(f)
-            if f.name in cls._skip_fields:
-                continue
             constance = util.make_constance(type_hints.get(f.name))
             f.metadata = dict(**f.metadata, constance=constance)
+            if f.name in cls._skip_fields:
+                continue
             data_fs.append(f)
 
         cls._setup_default_context(extends)
