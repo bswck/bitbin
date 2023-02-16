@@ -17,7 +17,6 @@ __all__ = (
     'field',
     'Model',
     'ModelFeature',
-    'ModelFeatureStorage',
     'ModelDataclass',
 )
 
@@ -40,9 +39,10 @@ missing = dataclasses.MISSING
 
 
 def dumps(model, initializer=missing, /, **context):
+    instance = model
     if initializer is not missing:
-        model = model._init(initializer)
-    return model._dump(**context)
+        instance = model._init(initializer)
+    return instance._dump(**context)
 
 
 class Model:
@@ -73,59 +73,57 @@ class Model:
     def _sizeof(cls, **context):
         return cls._construct().sizeof(**context)
 
-
-class ModelFeatureStorage(Model):
-    _storage_based = True
-
-    def __init__(self, factory, instance):
-        self._factory = factory
-        self._instance = instance
-
-    def _construct(self):
-        subcon = self._instance._construct()
-        return self._factory(subcon)
-
-    def _dump(self, **context):
-        return self._construct().build(
-            self._instance._extract(),
-            **context
-        )
+    @classmethod
+    def _on_field(cls, f):
+        return f
 
 
 class ModelFeature(Model):
     """Typically links to Subconstruct subclasses"""
 
-    _feature_impl = None
-    _storage_based = True
-    _storage_class = ModelFeatureStorage
+    model: typing.Any
 
-    def __init__(self, model, /, *args, **kwargs):
-        self._model = util.make_model(model)
-        self._params = args, kwargs
+    _feature_impl = None
+    _atype = None
+    _pass_context = False
+
+    def __post_init__(self):
+        if self.model is not None:
+            self.model = util.make_model(self.model)
+
+    @classmethod
+    def _initializer(cls, obj):
+        return obj
+
+    @classmethod
+    def _loader(cls, obj):
+        return obj
+
+    def __call__(self, model):
+        self.model = util.make_model(self.model)
+        return self
+
+    def __class_getitem__(cls, initlist):
+        # for nicer annotation syntax :3
+        return cls(*initlist)
 
     def _get_construct_factory(self):
-        args, kwargs = self._params
-        return lambda subcon: self._feature_impl(
-            subcon, *args, **kwargs
-        )
+        raise NotImplementedError
 
     def _get_construct(self, subcon=None):
         factory = self._get_construct_factory()
         if subcon is None:
-            subcon = self._model._construct()
+            subcon = self.model._construct()
         return factory(subcon)
 
-    def _init(self, obj):
-        instance = self._model._init(obj)
-        if self._model._storage_based:
-            return self._storage_class(
-                self._get_construct,
-                instance
-            )
-        return instance
-
     def _load(self, data, context):
-        return self._model._load(data, context)
+        loaded = self.model._load(data, context)
+        if isinstance(loaded, (bytes, bytearray)):
+            return self._init(self._construct().parse(loaded, **(context or {})))
+        return self._loader(loaded, context) if self._pass_context else self._loader(loaded)
+
+    def _init(self, obj):
+        return self._initializer(self.model._init(obj))
 
     def _construct(self):
         return self._get_construct()
@@ -138,7 +136,7 @@ class Singleton(Model):
     _storage_based = False
 
     def __init__(self, construct, value):
-        self._aconstruct = construct
+        self._cs = construct
         self._value = value
 
     def _init(self):
@@ -148,7 +146,7 @@ class Singleton(Model):
         return self._value
 
     def _construct(self):
-        return self._aconstruct
+        return self._cs
 
     def _dump(self, obj=None, **context):
         return self._construct().dump()
@@ -156,7 +154,7 @@ class Singleton(Model):
 
 class Atomic(Model):
     def __init__(self, construct, atype, pass_context=False, loader=None, initializer=None):
-        self._aconstruct = construct
+        self._cs = construct
         self._atype = atype
         self._loader = loader or atype
         self._initializer = initializer or atype
@@ -169,14 +167,14 @@ class Atomic(Model):
 
     def _load(self, data, context):
         if isinstance(data, (bytes, bytearray)):
-            return self._init(self._aconstruct.parse(data))
+            return self._init(self._cs.parse(data))
         return self._loader(data, context) if self._pass_context else self._loader(data)
 
     def _construct(self):
-        return self._aconstruct
+        return self._cs
 
     def _dump(self, obj, **context):
-        return self._aconstruct.dump(self._init(obj), **context)
+        return self._cs.dump(self._init(obj), **context)
 
 
 @dataclasses.dataclass
@@ -217,7 +215,9 @@ def field(
     # note 2: model= does not provide type annotation functionality (it's all about the order)
     f = dataclasses.field(default=default, default_factory=default_factory, **kwargs)
     f.name = name
-    f.metadata = dict(f.metadata, model=util.make_model(model) if model else None)
+    model = util.make_model(model)
+    f.metadata = dict(f.metadata, model=model if model else None)
+    model._on_field(f)
     return f
 
 
@@ -315,7 +315,7 @@ class ModelDataclass(Model):
     _annotations = None
     _storage_based = True
     _impl = None
-    __cache = None
+    _cache = None
 
     def __init_subclass__(
             cls,
@@ -329,7 +329,9 @@ class ModelDataclass(Model):
             if annotation_manager is None:
                 annotation_manager = AnnotationManager(cls)
             cls._annotation_manager = annotation_manager
+        # some hacking
         with annotation_manager.replace_annotations(stack_offset+1):
+            # there we go
             dataclasses.dataclass(cls, **cls._dataclass_params)
 
     def __post_init__(self):
@@ -390,19 +392,19 @@ class ModelDataclass(Model):
 
     @classmethod
     def _purge(cls):
-        cls.__cache = None
+        cls._cache = None
 
     @classmethod
     def _construct(cls):
-        if cls.__cache:
-            return cls.__cache
+        if cls._cache:
+            return cls._cache
         initdict = {}
         for f in dataclasses.fields(cls):
-            name = f.name
-            construct = f.metadata['model']._construct()
+            name, model = f.name, f.metadata['model']
+            construct = model._construct()
             initdict[name] = construct
         impl = cls._impl(**initdict)
-        cls.__cache = impl.compile()
+        cls._cache = impl.compile()
         return impl
 
     def _extract(self):

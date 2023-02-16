@@ -23,14 +23,14 @@ def test1():
 
 
 SUBSTRUCT = cs.LazyStruct(
-    a=long._aconstruct,
-    b=long._aconstruct
+    a=long._cs,
+    b=long._cs
 )
 
 
 CLASS = cs.LazyStruct(
-    a=long._aconstruct,
-    b=long._aconstruct,
+    a=long._cs,
+    b=long._cs,
     c=SUBSTRUCT
 )
 
@@ -43,5 +43,7 @@ def test2():
 print(*test1())
 print(*test2())
 
-print(timeit.timeit(test1, number=10000))
-print(timeit.timeit(test2, number=10000))
+for i in range(10):
+    print(f'iteration #{i+1}')
+    print('bitbin'.ljust(10), timeit.timeit(test1, number=10000))
+    print('construct'.ljust(10), timeit.timeit(test2, number=10000))

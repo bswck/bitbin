@@ -150,3 +150,9 @@ atomic_types.register(float, core.Atomic(_lib.Float32b, float))
 atomic_types.register(str, core.Atomic(_lib.CString(config.DEFAULT_ENCODING), str))
 atomic_types.register(bytes, core.Atomic(_lib.GreedyBytes, bytes))
 atomic_types.register(bytearray, core.Atomic(_lib.GreedyBytes, bytearray))
+
+generic_types = util.generic_types
+generic_types.register(list, core.Generic(list))
+generic_types.register(set, core.Generic(set))
+generic_types.register(frozenset, core.Generic(frozenset))
+generic_types.register(tuple, core.Generic(tuple))

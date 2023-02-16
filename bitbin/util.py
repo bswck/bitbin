@@ -51,7 +51,7 @@ def make_model(data_type):
         if atomic:
             return atomic
     raise TypeError(
-        f'illegal type {get_type_name(data_type)!r} for a model'
+        f'illegal object of type {type(data_type).__name__!r} for a model'
     )
 
 

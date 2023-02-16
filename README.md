@@ -1,15 +1,15 @@
-# Constance
+# bitbin
 
-Constance is a Python library for parsing binary data in an object-oriented manner achieved by 
+bitbin is a Python library for parsing binary data in an object-oriented manner achieved by 
 combining the features of [dataclasses](https://docs.python.org/3/library/dataclasses.html) and 
 [Construct](https://construct.readthedocs.io/en/latest/index.html) 
 (library specialized in declarative parsing and building of binary data).
 
 ## Setup
-`pip install constance`
+`pip install bitbin`
 
 ## Examples
-Constance may be used for stashing your data or sending it through sockets.
+bitbin may be used for stashing your data or sending it through sockets.
 Consider following examples:
 
 ```py
