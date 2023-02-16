@@ -5,7 +5,7 @@ setup(
     name='constance',
     version='0.0.0',
     description='Object-oriented parsing of binary data.',
-    url='https://github.com/bswck/constance/',
+    url='https://github.com/bswck/bitbin/',
     long_description_content_type='text/markdown',
     author="bswck",
     packages=find_packages(exclude=['tests', '.github']),

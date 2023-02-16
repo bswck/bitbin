@@ -13,7 +13,8 @@ Constance may be used for stashing your data or sending it through sockets.
 Consider following examples:
 
 ```py
-from constance import *
+from bitbin import *
+
 
 # Create a Struct dataclass that 
 # is equivalent to construct.Struct
@@ -25,6 +26,7 @@ class Point2D(Struct):
     # as in C++ - construct.Int32sn)
     x: int
     y: int
+
 
 # Create an Array type that consists of 2 Structs
 # Represented as Array<Point2D, count=2>
@@ -48,12 +50,14 @@ loaded_vector = Vector2D.load(stash)
 # Equality operator is available thanks to dataclasses
 assert my_vector == loaded_vector
 
+
 # Create a Circle dataclass
 # that uses previously created
 # Point2D
 class Circle(Struct):
     center: Point2D
     radius: double  # construct.Float64n
+
 
 # Created object repr():
 # Circle(center=Point2D(5, 5), radius=20.0)
