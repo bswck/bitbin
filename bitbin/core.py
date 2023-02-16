@@ -16,6 +16,8 @@ __all__ = (
     'dump', 'dumps',
     'field',
     'Model',
+    'ModelFeature',
+    'ModelFeatureStorage',
     'ModelDataclass',
 )
 
@@ -75,17 +77,19 @@ class Model:
 class ModelFeatureStorage(Model):
     _storage_based = True
 
-    def __init__(self, feature_impl, instance, kwargs):
-        self._feature_impl = feature_impl
+    def __init__(self, factory, instance):
+        self._factory = factory
         self._instance = instance
-        self._kwargs = kwargs
 
     def _construct(self):
         subcon = self._instance._construct()
-        return self._feature_impl(subcon, **self._kwargs)
+        return self._factory(subcon)
 
     def _dump(self, **context):
-        return self._construct().build(**context)
+        return self._construct().build(
+            self._instance._extract(),
+            **context
+        )
 
 
 class ModelFeature(Model):
@@ -95,30 +99,36 @@ class ModelFeature(Model):
     _storage_based = True
     _storage_class = ModelFeatureStorage
 
-    def __init__(self, model, /, **kwargs):
+    def __init__(self, model, /, *args, **kwargs):
         self._model = util.make_model(model)
-        self._kwargs = kwargs
+        self._params = args, kwargs
 
-    def _get_kwargs(self):
-        return self._kwargs
+    def _get_construct_factory(self):
+        args, kwargs = self._params
+        return lambda subcon: self._feature_impl(
+            subcon, *args, **kwargs
+        )
+
+    def _get_construct(self, subcon=None):
+        factory = self._get_construct_factory()
+        if subcon is None:
+            subcon = self._model._construct()
+        return factory(subcon)
 
     def _init(self, obj):
-        bound = self._model._init(obj)
+        instance = self._model._init(obj)
         if self._model._storage_based:
-            # check if it's a storage-based model
-            kwargs = self._get_kwargs()
             return self._storage_class(
-                self._feature_impl,
-                bound, kwargs
+                self._get_construct,
+                instance
             )
-        return bound
+        return instance
 
     def _load(self, data, context):
         return self._model._load(data, context)
 
     def _construct(self):
-        subcon = self._model._construct()
-        return self._feature_impl(subcon, **self._get_kwargs())
+        return self._get_construct()
 
     def _dump(self, obj, **context):
         return self._construct().build(obj, **context)
@@ -153,9 +163,13 @@ class Atomic(Model):
         self._pass_context = pass_context
 
     def _init(self, obj):
+        if isinstance(obj, (bytes, bytearray)):
+            return loads(self, obj)
         return self._initializer(obj)
 
     def _load(self, data, context):
+        if isinstance(data, (bytes, bytearray)):
+            return self._init(self._aconstruct.parse(data))
         return self._loader(data, context) if self._pass_context else self._loader(data)
 
     def _construct(self):
@@ -199,8 +213,8 @@ def field(
         default_factory=MISSING,
         **kwargs
 ):
-    # note 1: class may override the attribute name
-    # note 2: model= does not provide type annotation functionality
+    # note 1: class.__init_subclass__() may override the field name
+    # note 2: model= does not provide type annotation functionality (it's all about the order)
     f = dataclasses.field(default=default, default_factory=default_factory, **kwargs)
     f.name = name
     f.metadata = dict(f.metadata, model=util.make_model(model) if model else None)
@@ -303,8 +317,13 @@ class ModelDataclass(Model):
     _impl = None
     __cache = None
 
-    def __init_subclass__(cls, interface=False, stack_offset=1, annotation_manager=None):
-        if interface:
+    def __init_subclass__(
+            cls,
+            _bitbin=False,
+            stack_offset=1,
+            annotation_manager=None
+    ):
+        if _bitbin:
             return
         if cls._annotation_manager is None:
             if annotation_manager is None:
@@ -326,19 +345,23 @@ class ModelDataclass(Model):
 
     @classmethod
     def _init(cls, obj):
+        if isinstance(obj, LazyModelDataclass):
+            return obj
         if isinstance(obj, dict):
             return cls(**obj)
         if isinstance(obj, cls):
             return obj
+        if isinstance(obj, (bytes, bytearray)):
+            return loads(cls, obj)
         if isinstance(obj, typing.Iterable):
             return cls(*obj)
-        if isinstance(obj, (bytes, bytearray)):
-            return cls._load(obj)
         raise TypeError(f'cannot initialize {cls.__name__} from type {type(obj).__name__!r}')
 
     @classmethod
     def _load(cls, pkt, context):
-        data = cls._parse(pkt, context)
+        data = pkt
+        if isinstance(pkt, (bytes, bytearray)):
+            data = cls._parse(pkt, context)
         return cls._load_from_container(data, context)
 
     @classmethod
@@ -415,4 +438,4 @@ class LazyModelDataclass:
         return self() <= other
 
     def __repr__(self):
-        return repr(self())
+        return f'<LazyModelDataclass {self.__dataclass.__name__!r}>'

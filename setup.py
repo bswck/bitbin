@@ -2,7 +2,7 @@
 from setuptools import find_packages, setup
 
 setup(
-    name='constance',
+    name='bitbin',
     version='0.0.0',
     description='Object-oriented parsing of binary data.',
     url='https://github.com/bswck/bitbin/',
@@ -10,7 +10,7 @@ setup(
     author="bswck",
     packages=find_packages(exclude=['tests', '.github']),
     # entry_points={
-    #     'console_scripts': ['constance = constance.__main__:main']
+    #     'console_scripts': ['bitbin = bitbin.__main__:main']
     # },
     extras_require={'test': ['pytest']},
 )

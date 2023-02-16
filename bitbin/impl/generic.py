@@ -1,6 +1,7 @@
 from bitbin import core
 from bitbin import util
 
+__all__ = ()
 
 generic_types = util.generic_types
 generic_types.register(list, core.Generic(list))

@@ -1,13 +1,16 @@
 from .atomic import *
-from .structures import *
-from .sequences import *
+from .generic import *
+from .structs import *
+from .misc import *
 
 from . import atomic
-from . import structures
-# from . import sequences
+from . import generic
+from . import structs
+from . import misc
 
 __all__ = (
     *atomic.__all__,
-    *structures.__all__,
-    # *sequences.__all__
+    *generic.__all__,
+    *structs.__all__,
+    *misc.__all__,
 )
