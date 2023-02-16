@@ -323,6 +323,8 @@ class ModelDataclass(Model):
             stack_offset=1,
             annotation_manager=None
     ):
+        # never inherit cache
+        cls._cache = None
         if _bitbin:
             return
         if cls._annotation_manager is None:
