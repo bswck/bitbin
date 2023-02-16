@@ -2,11 +2,23 @@
 
 import functools
 import importlib
+import locale
 import sys
 
 import construct as _lib
 
 
+__all__ = (
+    'register_encoding',
+    'set_global_endianness',
+    'Endianness',
+    'GLOBAL_ENDIANNESS',
+    'DEFAULT_ENCODING',
+    'VALID_ENDIANNESSES',
+)
+
+
+DEFAULT_ENCODING = locale.getpreferredencoding()
 MOCK_STRING = '\0'
 
 
@@ -43,5 +55,5 @@ def set_global_endianness(endianness):
     except KeyError:
         raise ValueError(f'invalid endianness {endianness!r}') from None
     GLOBAL_ENDIANNESS = endianness
-    from constance import core
+    from bitbin import core
     importlib.reload(core)

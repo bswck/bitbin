@@ -2,7 +2,7 @@
 Informal playground while developing.
 """
 
-from constance import *
+from bitbin import *
 
 
 # Example 1

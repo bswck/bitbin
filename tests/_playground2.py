@@ -1,4 +1,4 @@
-from constance import *
+from bitbin import *
 
 
 class CharOrStr(Switch):
