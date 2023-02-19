@@ -1,20 +1,12 @@
-import dataclasses
 import functools
 import types
 import typing
+import weakref
 
 
 __all__ = (
     'make_model',
 )
-
-import weakref
-
-
-def get_type_name(obj):
-    if isinstance(obj, type):
-        return obj.__name__
-    return getattr(obj, '_type_name', None) or type(obj).__name__
 
 
 def make_model(data_type):

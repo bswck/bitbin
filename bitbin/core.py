@@ -11,13 +11,14 @@ import construct as _lib
 from bitbin import util
 
 __all__ = (
-    'AnnotationManager',
     'load', 'loads',
     'dump', 'dumps',
     'field',
+    'AnnotationManager',
     'Model',
     'ModelFeature',
-    'ModelDataclass',
+    'ModelDataclass', 'models',
+    'StorageBasedModel',
 )
 
 
@@ -49,10 +50,7 @@ class Model:
     _is_model = True
     _storage_based = False
 
-    # @typing.overload
-    # def _init(self): ...
-
-    def _init(self, *args):
+    def _init(self, data, context=None):
         raise NotImplementedError
 
     @classmethod
@@ -74,7 +72,7 @@ class Model:
         return cls._construct().sizeof(**context)
 
     @classmethod
-    def _on_field(cls, f):
+    def _fieldhook(cls, f):
         return f
 
 
@@ -84,7 +82,7 @@ class ModelFeature(Model):
     model: typing.Any
 
     _feature_impl = None
-    _atype = None
+    _obj_type = None
     _pass_context = False
 
     def __post_init__(self):
@@ -119,10 +117,10 @@ class ModelFeature(Model):
     def _load(self, data, context):
         loaded = self.model._load(data, context)
         if isinstance(loaded, (bytes, bytearray)):
-            return self._init(self._construct().parse(loaded, **(context or {})))
+            return self._init(self._construct().parse(loaded, **(context or {})), context)
         return self._loader(loaded, context) if self._pass_context else self._loader(loaded)
 
-    def _init(self, obj):
+    def _init(self, obj, context=None):
         return self._initializer(self.model._init(obj))
 
     def _construct(self):
@@ -139,7 +137,7 @@ class Singleton(Model):
         self._cs = construct
         self._value = value
 
-    def _init(self):
+    def _init(self, _obj=None, _context=None):
         return self._value
 
     def _load(self, data=None, context=None):
@@ -153,33 +151,40 @@ class Singleton(Model):
 
 
 class Atomic(Model):
-    def __init__(self, construct, atype, pass_context=False, loader=None, initializer=None):
-        self._cs = construct
-        self._atype = atype
-        self._loader = loader or atype
-        self._initializer = initializer or atype
+    def __init__(
+            self,
+            lib_object,
+            obj_type,
+            pass_context=False,
+            loader=None,
+            initializer=None
+    ):
+        self._lib_object = lib_object
+        self._obj_type = obj_type
+        self._loader = loader or obj_type
+        self._initializer = initializer or obj_type
         self._pass_context = pass_context
 
-    def _init(self, obj):
+    def _init(self, obj, context=None):
         if isinstance(obj, (bytes, bytearray)):
             return loads(self, obj)
         return self._initializer(obj)
 
     def _load(self, data, context):
         if isinstance(data, (bytes, bytearray)):
-            return self._init(self._cs.parse(data))
+            return self._init(self._lib_object.parse(data))
         return self._loader(data, context) if self._pass_context else self._loader(data)
 
     def _construct(self):
-        return self._cs
+        return self._lib_object
 
     def _dump(self, obj, **context):
-        return self._cs.dump(self._init(obj), **context)
+        return self._lib_object.build(self._init(obj), **context)
 
 
 @dataclasses.dataclass
 class Generic(Model):
-    _atype: type
+    _obj_type: type
 
     def __call__(self, args, *, count=None):
         if len(args) == 1:
@@ -187,14 +192,14 @@ class Generic(Model):
         else:
             args = [arg._construct() for arg in map(util.make_model, args)]
             if len(set(args)) > 1:
-                return Atomic(_lib.Sequence(*args), self._atype)
+                return Atomic(_lib.Sequence(*args), self._obj_type)
             model = Atomic(args[0])
         if count is None:
             return Atomic(
-                _lib.GreedyRange(model._construct()), self._atype
+                _lib.GreedyRange(model._construct()), self._obj_type
             )
         return Atomic(
-            _lib.Array(count, model._construct()), self._atype
+            _lib.Array(count, model._construct()), self._obj_type
         )
 
 
@@ -217,7 +222,7 @@ def field(
     f.name = name
     model = util.make_model(model)
     f.metadata = dict(f.metadata, model=model if model else None)
-    model._on_field(f)
+    model._fieldhook(f)
     return f
 
 
@@ -252,10 +257,9 @@ class AnnotationManager:
             self.model_dataclass._annotations
             or self.model_dataclass.__annotations__
         )
-
         self._mock_object = type(
-            '_AnnotationHelper', (),
-            {'__annotations__': anns}
+            '_AnnotationManagerMockObject',
+            (), {'__annotations__': anns}
         )
         self._globals = {}
         self._locals = {}
@@ -286,80 +290,32 @@ class AnnotationManager:
         return self._annotations
 
     def get_field(self, name, default=MISSING, instance=None):
+        target = instance or self.model_dataclass
         return (
-            getattr(instance or self.model_dataclass, name)
+            getattr(target, name)
             if default is MISSING else
-            getattr(instance or self.model_dataclass, name, default)
+            getattr(target, name, default)
         )
 
     def set_field(self, name, value, instance=None):
-        setattr(instance or self.model_dataclass, name, value)
+        target = instance or self.model_dataclass
+        setattr(target, name, value)
 
-    @contextlib.contextmanager
+    @contextlib.contextmanager  # <-- +1 frame
     def replace_annotations(self, stack_offset=1):
-        stack_offset += 1  # +1 from the context manager frame
-
+        stack_offset += 1  # +1 from the context manager
         old = self.model_dataclass.__annotations__
-
         self.model_dataclass.__annotations__ = self.map_to_fields(stack_offset + 1)
-
         try:
             yield
         finally:
             self.model_dataclass.__annotations__ = old
 
 
-class ModelDataclass(Model):
-    _dataclass_params = {}
-    _annotation_manager = None
-    _annotations = None
-    _storage_based = True
+class StorageBasedModel(Model):
     _impl = None
     _cache = None
-
-    def __init_subclass__(
-            cls,
-            _bitbin=False,
-            stack_offset=1,
-            annotation_manager=None
-    ):
-        # never inherit cache
-        cls._cache = None
-        if _bitbin:
-            return
-        if cls._annotation_manager is None:
-            if annotation_manager is None:
-                annotation_manager = AnnotationManager(cls)
-            cls._annotation_manager = annotation_manager
-        # some hacking
-        with annotation_manager.replace_annotations(stack_offset+1):
-            # there we go
-            dataclasses.dataclass(cls, **cls._dataclass_params)
-
-    def __post_init__(self):
-        for f in dataclasses.fields(self):
-            name = f.name
-            model = f.metadata['model']
-            missing = object()
-            orig = self._annotation_manager.get_field(name, default=missing, instance=self)
-            if orig is missing:
-                continue
-            value = model._init(orig)
-            self._annotation_manager.set_field(name, value, instance=self)
-
-    @classmethod
-    def _init(cls, obj):
-        if isinstance(obj, LazyModelDataclass):
-            return obj
-        if isinstance(obj, dict):
-            return cls(**obj)
-        if isinstance(obj, cls):
-            return obj
-        if isinstance(obj, (bytes, bytearray)):
-            return loads(cls, obj)
-        if isinstance(obj, typing.Iterable):
-            return cls(*obj)
-        raise TypeError(f'cannot initialize {cls.__name__} from type {type(obj).__name__!r}')
+    _storage_based = True
 
     @classmethod
     def _load(cls, pkt, context):
@@ -367,6 +323,91 @@ class ModelDataclass(Model):
         if isinstance(pkt, (bytes, bytearray)):
             data = cls._parse(pkt, context)
         return cls._load_from_container(data, context)
+
+    @classmethod
+    def _load_from_container(cls, data, context):
+        raise NotImplementedError
+
+    @classmethod
+    def _eager_load(cls, data, context):
+        raise NotImplementedError
+
+    @classmethod
+    def _lazy_load(cls, data, context):
+        return LazyStorageBased(cls, data, context)
+
+    @classmethod
+    def _parse(cls, data, context):
+        cs = cls._construct()
+        return cs.parse(data, **context)
+
+    @classmethod
+    def _purge(cls):
+        cls._cache = None
+
+    @classmethod
+    def _construct(cls):
+        raise NotImplementedError
+
+    def _storage(self):
+        raise NotImplementedError
+
+    def _dump(self, **context):
+        data = self._storage()
+        cs = self._construct()
+        return cs.build(data, **context)
+
+
+class ModelDataclass(StorageBasedModel):
+    _annotations = None
+    _annotation_mgr = None
+    _impl = None
+    _cache = None
+    _dataclass_params = {}
+
+    def __init_subclass__(
+            cls,
+            _bitbin=False,
+            stack_offset=1,
+            annotation_mgr=None
+    ):
+        # never inherit cache
+        cls._cache = None
+        if _bitbin:
+            return
+        if cls._annotation_mgr is None:
+            if annotation_mgr is None:
+                annotation_mgr = AnnotationManager(cls)
+            cls._annotation_mgr = annotation_mgr
+        # some hacking
+        with annotation_mgr.replace_annotations(stack_offset + 1):
+            # there we go
+            dataclasses.dataclass(cls, **cls._dataclass_params)
+
+    def __post_init__(self):
+        missing_cookie = object()
+        context = {}
+        for f in dataclasses.fields(self):
+            name = f.name
+            model = f.metadata['model']
+            orig = self._annotation_mgr.get_field(name, default=missing_cookie, instance=self)
+            if orig is missing_cookie:
+                continue
+            value = model._init(orig, context)
+            self._annotation_mgr.set_field(name, value, instance=self)
+            context[name] = value
+
+    @classmethod
+    def _init(cls, obj, context=None):
+        if isinstance(obj, (cls, LazyStorageBased)):
+            return obj
+        if isinstance(obj, dict):
+            return cls(**obj)
+        if isinstance(obj, (bytes, bytearray)):
+            return loads(cls, obj, **(context or {}))
+        if isinstance(obj, typing.Iterable):
+            return cls(*obj)
+        raise TypeError(f'cannot initialize {cls.__name__} from type {type(obj).__name__!r}')
 
     @classmethod
     def _load_from_container(cls, data, context):
@@ -380,21 +421,11 @@ class ModelDataclass(Model):
     def _eager_load(cls, data, context):
         initdict = {}
         for f in dataclasses.fields(cls):
-            initdict[name] = f.metadata['model']._load(data[name := f.name], context)
+            name, model = f.name, f.metadata['model']
+            init = model._load(data[name], context)
+            initdict[name] = init
+            context[name] = init
         return cls._init(initdict)
-
-    @classmethod
-    def _lazy_load(cls, data, context):
-        return LazyModelDataclass(cls, data, context)
-
-    @classmethod
-    def _parse(cls, data, context):
-        cs = cls._construct()
-        return cs.parse(data, **context)
-
-    @classmethod
-    def _purge(cls):
-        cls._cache = None
 
     @classmethod
     def _construct(cls):
@@ -406,30 +437,30 @@ class ModelDataclass(Model):
             construct = model._construct()
             initdict[name] = construct
         impl = cls._impl(**initdict)
-        cls._cache = impl.compile()
+        cls._cache = impl  # .compile()
         return impl
 
-    def _extract(self):
+    def _storage(self):
         return dataclasses.asdict(self)
 
-    def _dump(self, **context):
-        data = self._extract()
-        cs = self._construct()
-        return cs.build(data, **context)
+
+def models(cls):
+    fields = {f.name: f for f in dataclasses.fields(cls)}
+    return _lib.Container(zip(fields.keys(), map(lambda f: f.metadata['model'], fields.values())))
 
 
 @typing.final
 @functools.total_ordering
-class LazyModelDataclass:
-    def __init__(self, dataclass, container, context=None):
-        self.__dataclass = dataclass
+class LazyStorageBased:
+    def __init__(self, model, container, context=None):
+        self.__model = model
         self.__container = container
         self.__context = context
         self.__object = None
 
     def __call__(self):
         if self.__object is None:
-            self.__object = self.__dataclass._eager_load(self.__container, self.__context)
+            self.__object = self.__model._eager_load(self.__container, self.__context)
         return self.__object
 
     def __getattr__(self, item):
@@ -442,4 +473,4 @@ class LazyModelDataclass:
         return self() <= other
 
     def __repr__(self):
-        return f'<LazyModelDataclass {self.__dataclass.__name__!r}>'
+        return f'<{type(self).__name__} {self.__model.__name__!r}>'

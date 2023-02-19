@@ -33,13 +33,13 @@ class AlignedStruct(core.ModelDataclass, _bitbin=True):
     def __init_subclass__(
             cls, _bitbin=False,
             stack_offset=1,
-            annotation_manager=None
+            annotation_mgr=None
     ):
         if _bitbin:
             return
         super().__init_subclass__(
             stack_offset=stack_offset+1,
-            annotation_manager=annotation_manager
+            annotation_mgr=annotation_mgr
         )
         cls._impl = functools.partial(cls._impl, cls._modulus)
 

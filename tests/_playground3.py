@@ -23,14 +23,14 @@ def test1():
 
 
 SUBSTRUCT = cs.LazyStruct(
-    a=long._cs,
-    b=long._cs
+    a=long._lib_object,
+    b=long._lib_object
 )
 
 
 CLASS = cs.LazyStruct(
-    a=long._cs,
-    b=long._cs,
+    a=long._lib_object,
+    b=long._lib_object,
     c=SUBSTRUCT
 )
 

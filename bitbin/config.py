@@ -9,10 +9,13 @@ import construct as _lib
 
 
 __all__ = (
+    'LITTLE_ENDIAN',
+    'BIG_ENDIAN',
+    'NATIVE_ENDIAN',
     'register_encoding',
-    'set_global_endianness',
+    'set_endianness',
     'Endianness',
-    'GLOBAL_ENDIANNESS',
+    'ENDIANNESS',
     'DEFAULT_ENCODING',
     'VALID_ENDIANNESSES',
 )
@@ -35,6 +38,11 @@ class Endianness:
     NATIVE = sys.byteorder[0]
 
 
+LITTLE_ENDIAN = Endianness.LITTLE
+BIG_ENDIAN = Endianness.LITTLE
+NATIVE_ENDIAN = Endianness.LITTLE
+
+
 VALID_ENDIANNESSES = {
     'l': Endianness.LITTLE,
     'little': Endianness.LITTLE,
@@ -45,15 +53,15 @@ VALID_ENDIANNESSES = {
 }
 
 
-GLOBAL_ENDIANNESS = Endianness.BIG
+ENDIANNESS = BIG_ENDIAN
 
 
-def set_global_endianness(endianness):
-    global GLOBAL_ENDIANNESS
+def set_endianness(endianness):
+    global ENDIANNESS
     try:
         endianness = VALID_ENDIANNESSES[endianness.lower()]
     except KeyError:
         raise ValueError(f'invalid endianness {endianness!r}') from None
-    GLOBAL_ENDIANNESS = endianness
+    ENDIANNESS = endianness
     from bitbin import core
     importlib.reload(core)

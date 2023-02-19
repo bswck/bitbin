@@ -6,7 +6,6 @@ import construct as _lib
 from bitbin import core
 
 __all__ = (
-    'Adapter',
     'Aligned',
     'Array',
     'Compressed',
@@ -15,9 +14,9 @@ __all__ = (
     'Debugger',
     'Default',
     'Enum',
-    'ExprAdapter',
-    'ExprSymmetricAdapter',
-    'ExprValidator',
+    'Adapter',
+    'SymmetricAdapter',
+    'Validator',
     'FixedSized',
     'FlagsEnum',
     'GreedyRange',
@@ -49,7 +48,6 @@ __all__ = (
     'TimestampAdapter',
     'Transformed',
     'Tunnel',
-    'Validator',
 )
 
 
@@ -63,12 +61,6 @@ class _ModelFeatureDataclass(core.ModelFeature):
         return lambda subcon: self._feature_impl(
             **{**self._extract_args(), 'subcon': subcon}
         )
-
-
-@dataclasses.dataclass
-class Adapter(_ModelFeatureDataclass):
-    """Port to construct.Adapter"""
-    _feature_impl = _lib.Adapter  # (subcon)
 
 
 @dataclasses.dataclass
@@ -97,14 +89,13 @@ class Array(_ModelFeatureDataclass):
         del args['type']
         return args
 
-    def _init(self, obj):
+    def _init(self, obj, context=None):
         return self.type(map(self.model._init, obj))
 
     def _load(self, data, context):
         if isinstance(data, (bytes, bytearray)):
             data = self._construct().parse(data, **(context or {}))
-        loaded = (self.model._init(element) for element in data)
-        return self.type(loaded)
+        return self.type(self.model._init(element) for element in data)
 
 
 @dataclasses.dataclass
@@ -145,10 +136,10 @@ class Default(_ModelFeatureDataclass):
 
     _feature_impl = _lib.Default  # (subcon, value)
 
-    def _init(self, obj):
+    def _init(self, obj, context=None):
         if obj is None:
             return obj
-        return super()._init(obj)
+        return super()._init(obj, context)
 
 
 @dataclasses.dataclass
@@ -159,22 +150,29 @@ class Enum(_ModelFeatureDataclass):
 
 
 @dataclasses.dataclass
-class ExprAdapter(_ModelFeatureDataclass):
+class Adapter(_ModelFeatureDataclass):
     """Port to construct.ExprAdapter"""
+    decoder: Callable[[Any, _lib.Container], Any]
+    encoder: Callable[[Any, _lib.Container], Any]
+    model: Any = None
 
     _feature_impl = _lib.ExprAdapter  # (subcon, decoder, encoder)
 
 
 @dataclasses.dataclass
-class ExprSymmetricAdapter(_ModelFeatureDataclass):
+class SymmetricAdapter(_ModelFeatureDataclass):
     """Port to construct.ExprSymmetricAdapter"""
+    encoder: Callable[[Any, _lib.Container], Any]
+    model: Any = None
 
     _feature_impl = _lib.ExprSymmetricAdapter  # (subcon, encoder)
 
 
 @dataclasses.dataclass
-class ExprValidator(_ModelFeatureDataclass):
+class Validator(_ModelFeatureDataclass):
     """Port to construct.ExprValidator"""
+    validator: Callable[[Any, _lib.Container], bool]
+    model: Any = None
 
     _feature_impl = _lib.ExprValidator  # (subcon, validator)
 
@@ -182,6 +180,8 @@ class ExprValidator(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class FixedSized(_ModelFeatureDataclass):
     """Port to construct.FixedSized"""
+    length: int | Callable[[_lib.Container], int]
+    model: Any = None
 
     _feature_impl = _lib.FixedSized  # (length, subcon)
 
@@ -196,6 +196,8 @@ class FlagsEnum(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class GreedyRange(_ModelFeatureDataclass):
     """Port to construct.GreedyRange"""
+    model: Any
+    discard: bool = False
 
     _feature_impl = _lib.GreedyRange  # (subcon, discard=False)
 
@@ -203,6 +205,7 @@ class GreedyRange(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class Hex(_ModelFeatureDataclass):
     """Port to construct.Hex"""
+    model: Any
 
     _feature_impl = _lib.Hex  # (subcon)
 
@@ -210,6 +213,7 @@ class Hex(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class HexDump(_ModelFeatureDataclass):
     """Port to construct.HexDump"""
+    model: Any
 
     _feature_impl = _lib.HexDump  # (subcon)
 
@@ -245,6 +249,9 @@ class Mapping(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class NamedTuple(_ModelFeatureDataclass):
     """Port to construct.NamedTuple"""
+    tuplename: str
+    tuplefields: str | list[str]
+    model: Any = None
 
     _feature_impl = _lib.NamedTuple  # (tuplename, tuplefields, subcon)
 
@@ -288,6 +295,9 @@ class Pointer(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class Prefixed(_ModelFeatureDataclass):
     """Port to construct.Prefixed"""
+    lengthfield: Any
+    includelength: bool = False
+    model: Any = None
 
     _feature_impl = _lib.Prefixed  # (lengthfield, subcon, includelength=False)
 
@@ -310,6 +320,8 @@ class ProcessXor(_ModelFeatureDataclass):
 class RawCopy(_ModelFeatureDataclass):
     """Port to construct.RawCopy"""
 
+    model: Any = None
+
     _feature_impl = _lib.RawCopy  # (subcon)
 
 
@@ -317,12 +329,17 @@ class RawCopy(_ModelFeatureDataclass):
 class Rebuffered(_ModelFeatureDataclass):
     """Port to construct.Rebuffered"""
 
+    model: Any
+    tailcutoff: int | None = None
+
     _feature_impl = _lib.Rebuffered  # (subcon, tailcutoff=None)
 
 
 @dataclasses.dataclass
 class Rebuild(_ModelFeatureDataclass):
     """Port to construct.Rebuild"""
+    func: Any | Callable[[_lib.Container], Any]
+    model: Any = None
 
     _feature_impl = _lib.Rebuild  # (subcon, func)
 
@@ -330,6 +347,10 @@ class Rebuild(_ModelFeatureDataclass):
 @dataclasses.dataclass
 class Renamed(_ModelFeatureDataclass):
     """Port to construct.Renamed"""
+    newname: str | None = None
+    newdocs: str | None = None
+    newparsed: Callable[[Any, _lib.Container], Any] | None = None
+    model: Any = None
 
     _feature_impl = _lib.Renamed  # (subcon, newname=None, newdocs=None, newparsed=None)
 
@@ -373,6 +394,7 @@ class Slicing(_ModelFeatureDataclass):
 class StringEncoded(_ModelFeatureDataclass):
     """Port to construct.StringEncoded"""
     encoding: str
+    model: Any = None
 
     _feature_impl = _lib.StringEncoded  # (subcon, encoding)
 
@@ -409,10 +431,3 @@ class Tunnel(_ModelFeatureDataclass):
     """Port to construct.Tunnel"""
 
     _feature_impl = _lib.Tunnel  # (subcon)
-
-
-@dataclasses.dataclass
-class Validator(_ModelFeatureDataclass):
-    """Port to construct.Validator"""
-
-    _feature_impl = _lib.Validator  # (subcon)
