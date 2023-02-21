@@ -86,6 +86,11 @@ class Sequence(list, core.StorageBasedModel):
         if cls._models:
             cls._models = [util.make_model(model) for model in cls._models]
 
+    def __init__(self, *values):
+        super().__init__(
+            model._init(value) for value, model in zip(values, self._models)
+        )
+
     @classmethod
     def _construct(cls):
         if not cls._cache:
@@ -101,7 +106,7 @@ class Sequence(list, core.StorageBasedModel):
         if isinstance(obj, (bytes, bytearray)):
             return core.loads(cls, obj, **(context or {}))
         if isinstance(obj, typing.Iterable):
-            return cls(obj)
+            return cls(*obj)
         raise TypeError(f'cannot initialize {cls.__name__} from type {type(obj).__name__!r}')
 
     @classmethod
@@ -114,7 +119,7 @@ class Sequence(list, core.StorageBasedModel):
             else:
                 value = model._init(default)
             initlist.append(value)
-        return cls(initlist)
+        return cls(*initlist)
 
     @classmethod
     def _load_from_container(cls, data, context):
@@ -129,9 +134,9 @@ class Sequence(list, core.StorageBasedModel):
         initlist = []
         for elem, model in zip(data, cls._models):
             initlist.append(model._load(elem, context))
-        return cls(data)
+        return cls(*data)
 
-    def _storage(self):
+    def _get_storage(self):
         return self
 
 

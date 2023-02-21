@@ -349,11 +349,11 @@ class StorageBasedModel(Model):
     def _construct(cls):
         raise NotImplementedError
 
-    def _storage(self):
+    def _get_storage(self):
         raise NotImplementedError
 
     def _dump(self, **context):
-        data = self._storage()
+        data = self._get_storage()
         cs = self._construct()
         return cs.build(data, **context)
 
@@ -440,7 +440,7 @@ class ModelDataclass(StorageBasedModel):
         cls._cache = impl  # .compile()
         return impl
 
-    def _storage(self):
+    def _get_storage(self):
         return dataclasses.asdict(self)
 
 
