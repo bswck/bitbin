@@ -13,12 +13,12 @@ bitbin may be used for stashing your data or sending it through sockets.
 Consider following examples:
 
 ```py
-from bitbin import *
+import bitbin as bb
 
 
 # Create a Struct dataclass that 
 # is equivalent to construct.Struct
-class Point2D(Struct):
+class Point2D(bb.Struct):
     """Two-dimensional point in the plane."""
 
     # Declare 2 struct members of type int 
@@ -29,7 +29,7 @@ class Point2D(Struct):
 
 
 # Create an Array type that consists of 2 Structs
-Vector2D = Array[2, Point2D]
+Vector2D = bb.Array[2, Point2D]
 
 # Instantiate the 2-dimensional vector by member initializer list
 # Other possible methods to do this:
@@ -39,11 +39,11 @@ my_vector = Vector2D((-20, 8), (10, 15))
 
 # Transform to bytes. In this case the result is
 # b'\xec\xff\xff\xff\x08\x00\x00\x00\n\x00\x00\x00\x0f\x00\x00\x00'
-stash = bytes(my_vector)
+stash = bb.dumps(my_vector)
 
 # Recreate our vector using Struct.load()
 # that bases on construct.Struct(...).parse()
-loaded_vector = Vector2D.load(stash)
+loaded_vector = bb.loads(Vector2D, stash)
 
 # Check if both are equal
 # Equality operator is available thanks to dataclasses
@@ -53,9 +53,9 @@ assert my_vector == loaded_vector
 # Create a Circle dataclass
 # that uses previously created
 # Point2D
-class Circle(Struct):
+class Circle(bb.Struct):
     center: Point2D
-    radius: double  # construct.Float64n
+    radius: bb.double  # construct.Float64n
 
 
 # Created object repr():
@@ -63,10 +63,10 @@ class Circle(Struct):
 my_circle = Circle((5, 5), 20)
 
 # b'\x05\x00\x00\x00\x05\x00\x00\x00\x00\x00\x00\x00\x00\x004@'
-stash = bytes(my_circle)
+stash = bb.dumps(my_circle)
 
 # Circle(center=Point2D(5, 5), radius=20.0)
-loaded_circle = Circle.load(stash)
+loaded_circle = bb.loads(Circle, stash)
 
 assert my_circle == loaded_circle  # True!
 ```
