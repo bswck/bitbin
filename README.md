@@ -29,8 +29,7 @@ class Point2D(Struct):
 
 
 # Create an Array type that consists of 2 Structs
-# Represented as Array<Point2D, count=2>
-Vector2D = Point2D[2]
+Vector2D = Array[2, Point2D]
 
 # Instantiate the 2-dimensional vector by member initializer list
 # Other possible methods to do this:
