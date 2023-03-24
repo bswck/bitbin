@@ -85,6 +85,7 @@ def bitwise_int_type(
     return core.Atomic(_lib.BitsInteger(bit_length), signed=signed, swapped=swapped)
 
 
+
 Int8sl = core.Atomic(_lib.Int8sl, int)
 Int8sb = core.Atomic(_lib.Int8sb, int)
 Int8sn = core.Atomic(_lib.Int8sn, int)

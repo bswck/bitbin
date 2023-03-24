@@ -1,2 +1,2 @@
-construct~=2.10.68
-black~=22.22.0
+-r requirements.txt
+black

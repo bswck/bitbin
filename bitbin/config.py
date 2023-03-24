@@ -2,7 +2,6 @@
 
 import functools
 import importlib
-import locale
 import sys
 
 import construct as _lib
@@ -21,7 +20,7 @@ __all__ = (
 )
 
 
-DEFAULT_ENCODING = locale.getpreferredencoding()
+DEFAULT_ENCODING = 'UTF-8'
 MOCK_STRING = '\0'
 
 

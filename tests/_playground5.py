@@ -1,6 +1,5 @@
 import bitbin as bb
 
-
 bb.set_endianness(bb.BIG_ENDIAN)
 
 

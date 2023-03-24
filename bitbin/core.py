@@ -5,6 +5,7 @@ import dataclasses
 import functools
 import inspect
 import typing
+from typing import Generic, TypeVar
 
 import construct as _lib
 
@@ -46,7 +47,10 @@ def dumps(model, initializer=missing, /, **context):
     return instance._dump(**context)
 
 
-class Model:
+T = TypeVar('T')
+
+
+class Model(Generic[T]):
     _is_model = True
     _storage_based = False
 
@@ -134,7 +138,7 @@ class Singleton(Model):
     _storage_based = False
 
     def __init__(self, construct, value):
-        self._cs = construct
+        self._construct_object = construct
         self._value = value
 
     def _init(self, _obj=None, _context=None):
@@ -144,7 +148,7 @@ class Singleton(Model):
         return self._value
 
     def _construct(self):
-        return self._cs
+        return self._construct_object
 
     def _dump(self, obj=None, **context):
         return self._construct().dump()
